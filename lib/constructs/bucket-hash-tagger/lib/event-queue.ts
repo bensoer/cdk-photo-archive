@@ -7,8 +7,8 @@ import {
 import { Duration } from 'aws-cdk-lib'
 
 export interface EventQueueProps {
-    bucket: s3.Bucket
-    processingTimeout: Duration
+    buckets: Array<s3.Bucket>
+    lambdaTimeout: Duration
 
 }
 
@@ -19,16 +19,20 @@ export class EventQueue extends Construct{
     constructor(scope:Construct, id:string, props: EventQueueProps){
         super(scope, id)
 
+        const lambdaTimeoutMinutes = props.lambdaTimeout.toMinutes()
+        const visibilityTimeout = lambdaTimeoutMinutes * 6
+
         this.eventQueue = new sqs.Queue(this, "bht-event-queue-id", {
             queueName: "bht-event-queue",
             encryption: sqs.QueueEncryption.UNENCRYPTED,
-            visibilityTimeout: props.processingTimeout
+            visibilityTimeout: Duration.minutes(visibilityTimeout)
           })
       
         const eventQueuePolicy = new sqs.QueuePolicy(this, "bht-event-queue-policy-id",{
           queues: [ this.eventQueue ],
         })
     
+        const bucketArns = props.buckets.map((bucket) => "arn:aws:s3:*:*:" + bucket.bucketName)
         eventQueuePolicy.document.addStatements(new iam.PolicyStatement({
             principals:[
                 new iam.ServicePrincipal("s3.amazonaws.com")
@@ -41,7 +45,7 @@ export class EventQueue extends Construct{
             ],
             conditions:{
                 "ArnLike": {
-                    "aws:SourceArn": "arn:aws:s3:*:*:" + props.bucket.bucketName
+                    "aws:SourceArn": bucketArns
                 }
             }
         }))

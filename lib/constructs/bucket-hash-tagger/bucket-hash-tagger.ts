@@ -15,8 +15,8 @@ import { EventQueue } from "./lib/event-queue";
 
 
 export interface BucketHashTaggerProps {
-    bucket: Bucket
-    processingTimeout?: Duration
+    buckets: Map<String, Bucket>
+    lambdaTimeout?: Duration
 
 }
 
@@ -25,18 +25,19 @@ export class BucketHashTagger extends Construct{
     constructor(scope: Construct, id: string, props: BucketHashTaggerProps){
         super(scope, id);
 
-        const processingTimeout = props.processingTimeout ?? Duration.minutes(15)
+        const lambdaTimeout = props.lambdaTimeout ?? Duration.minutes(15)
 
         // SQS Event Queue and associated policies
         const eventQueue = new EventQueue(this, "bht-event-queue-construct-id", {
-          bucket: props.bucket,
-          processingTimeout: processingTimeout
+          buckets: Array.from(props.buckets.values()),
+          lambdaTimeout: lambdaTimeout
         })
 
         // Hash function and associated policies
         const hashingFunction = new HashingFunction(this, "bht-hashing-function-construct-id", {
           eventQueue: eventQueue.eventQueue,
-          processingTimeout: processingTimeout
+          lambdaTimeout: lambdaTimeout,
+          buckets: Array.from(props.buckets.values())
         })
 
         const eventLinkingLambdaRole = new iam.Role(this, "bht-event-linking-function-service-role-id", {
@@ -45,6 +46,7 @@ export class BucketHashTagger extends Construct{
             assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com')
           })
       
+        const bucketArns = Array.from(props.buckets.values()).map((bucket) => bucket.bucketArn)
         const eventLinkingLambdaS3Policy = new iam.Policy(this, "bht-event-linking-function-service-role-s3-policy-id", {
           policyName: "bht-event-linking-lambda-s3-policy",
           roles: [
@@ -55,9 +57,7 @@ export class BucketHashTagger extends Construct{
               actions:[
                 's3:PutBucketNotification'
               ],
-              resources:[
-                props.bucket.bucketArn
-              ]
+              resources: bucketArns
             })
           ]
         })
@@ -67,7 +67,7 @@ export class BucketHashTagger extends Construct{
           description: 'Event Linking For S3 Bucket Events To SQS And To Hashing Function Lambda',
           runtime: lambda.Runtime.PYTHON_3_7,
           handler: 'lambda_function.on_event',
-          code: lambda.Code.fromAsset(path.join(__dirname, './res/linking_function.zip')),
+          code: lambda.Code.fromAsset(path.join(__dirname, './res/linking_function')),
           role: eventLinkingLambdaRole,
           timeout: Duration.minutes(15)
         })
@@ -95,21 +95,26 @@ export class BucketHashTagger extends Construct{
           onEventHandler: eventLinkingLambda,
           logRetention: logs.RetentionDays.ONE_DAY,
         })
-    
-        const eventLinkingCustomResource = new CustomResource(this, "bht-event-linking-custom-resource-id", {
-          resourceType: "Custom::BHT-EventLinker",
-          serviceToken: eventLinkingCustomResourceProvider.serviceToken,
-          properties: {
-            "bucketArn": props.bucket.bucketArn,
-            "bucketName": props.bucket.bucketName,
-            "sqsQueueArn": eventQueue.eventQueue.queueArn,
-            "lambdaArn": hashingFunction.hashingFunction.functionArn
-          }
-        })
 
-        eventLinkingCustomResource.node.addDependency(props.bucket)
-        eventLinkingCustomResource.node.addDependency(eventQueue)
-        eventLinkingCustomResource.node.addDependency(hashingFunction)
+        for(const [bucketName, bucket] of props.buckets){
+          const eventLinkingCustomResource = new CustomResource(this, `bht-event-linking-custom-resource-${bucketName}-id`, {
+            resourceType: `Custom::BHT-EventLinker-${bucketName}`,
+            serviceToken: eventLinkingCustomResourceProvider.serviceToken,
+            properties: {
+              "bucketArn": bucket.bucketArn,
+              "bucketName": bucket.bucketName,
+              "sqsQueueArn": eventQueue.eventQueue.queueArn,
+              "lambdaArn": hashingFunction.hashingFunction.functionArn
+            }
+          })
+
+          eventLinkingCustomResource.node.addDependency(bucket)
+          eventLinkingCustomResource.node.addDependency(eventQueue)
+          eventLinkingCustomResource.node.addDependency(hashingFunction)
+        }
+    
+        
+        
 
 
     }

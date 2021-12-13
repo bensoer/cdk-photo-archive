@@ -46,13 +46,22 @@ def on_create(event):
         print(e)
         raise e
 
-    print("Linking SQS Events To Lambda")
-    lambda_linking_response = lambda_client.create_event_source_mapping(
+    print("Checking If Event Source Mapping Already Exists For SQS Queue Events -> Lambda")
+    event_sources = lambda_client.list_event_source_mappings(
         EventSourceArn=sqsQueueArn,
-        FunctionName=lambdaArn,
+        FunctionName=lambdaArn
     )
-    print("Linking SQS Events To Lambda Complete")
-    print(lambda_linking_response)
+    if len(event_sources["EventSourceMappings"]) > 0:
+        print("Event Source Mapping Already Setup Between SQS Queue And Lambda")
+        print(event_sources)
+    else:
+        print("Linking SQS Events To Lambda")
+        lambda_linking_response = lambda_client.create_event_source_mapping(
+            EventSourceArn=sqsQueueArn,
+            FunctionName=lambdaArn,
+        )
+        print("Linking SQS Events To Lambda Complete")
+        print(lambda_linking_response)
 
 
     return { "Status": "SUCCESS" }

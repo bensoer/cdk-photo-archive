@@ -73,8 +73,15 @@ export class PhotoArchiveStack extends Stack {
     })
 
     const bht = new BucketHashTagger(this, "bucket-hash-tagger-construct-id", {
-      bucket: mainBucket,
-      processingTimeout: Duration.minutes(15)
+      buckets: new Map<String, s3.Bucket>(
+       [
+         [
+           "pt-photo-archive-us-east-1",
+           mainBucket
+         ]
+       ] 
+      ),
+      lambdaTimeout: Duration.minutes(15)
     })
 
   }
