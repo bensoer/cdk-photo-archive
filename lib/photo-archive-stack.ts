@@ -13,6 +13,8 @@ import {
   CustomResource
 } from 'aws-cdk-lib';
 import { BucketHashTagger } from './constructs/bucket-hash-tagger/bucket-hash-tagger';
+import { PhotoMetaTagger } from './constructs/photo-meta-tagger/photo-meta-tagger';
+import { EventLinker, LinkingConfiguration } from './constructs/event-linker/event-linker';
 
 export class PhotoArchiveStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
@@ -72,8 +74,10 @@ export class PhotoArchiveStack extends Stack {
       ],
     })
 
-    const bht = new BucketHashTagger(this, "bucket-hash-tagger-construct-id", {
-      buckets: new Map<String, s3.Bucket>(
+    const bht = new BucketHashTagger(this, "pt-pa-bucket-hash-tagger-construct-id", {
+      region: this.region,
+      account: this.account,
+      buckets: new Map<string, s3.Bucket>(
        [
          [
            "pt-photo-archive-us-east-1",
@@ -81,7 +85,28 @@ export class PhotoArchiveStack extends Stack {
          ]
        ] 
       ),
-      lambdaTimeout: Duration.minutes(15)
+      lambdaTimeout: Duration.minutes(15),
+      createEventLinking: false
+    })
+
+    const pmt = new PhotoMetaTagger(this, "pt-pa-photo-meta-tagger-construct-id", {
+      region: this.region,
+      account: this.account,
+      buckets: new Map<string, s3.Bucket>(
+        [
+          [
+            "pt-photo-archive-us-east-1",
+            mainBucket
+          ]
+        ] 
+       ),
+       lambdaTimeout: Duration.minutes(15),
+       createEventLinking: false
+    })
+
+    const eventLinkingConfigurations = pmt.linkingConfiguration.concat(bht.linkingConfiguration)
+    const eventLinker = new EventLinker(this, "pt-pa-event-linker-construct-id", {
+      linkingConfigurations: eventLinkingConfigurations
     })
 
   }
