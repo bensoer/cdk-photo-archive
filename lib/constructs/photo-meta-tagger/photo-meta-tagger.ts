@@ -28,6 +28,7 @@ export class PhotoMetaTagger extends Construct {
 
         // SQS Event Queue and associated policies
         this.eventQueue = new EventQueue(this, "pmt-event-queue-construct-id", {
+          eventQueueName: "pmt-event-queue",
           buckets: Array.from(props.buckets.values()),
           lambdaTimeout: lambdaTimeout
         })

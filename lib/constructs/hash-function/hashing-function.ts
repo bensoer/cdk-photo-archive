@@ -7,13 +7,12 @@ import {
 } from 'aws-cdk-lib'
 import { Duration } from 'aws-cdk-lib'
 import * as path from 'path'
+import { ManagedPolicies, ServicePrincipals } from "cdk-constants";
 
 export interface HashingFunctionProps {
     buckets: Array<s3.Bucket>
-    eventQueue: sqs.Queue
+    requestQueue: sqs.Queue
     lambdaTimeout: Duration
-    region: string
-    account: string
 }
 
 export class HashingFunction extends Construct{
@@ -26,10 +25,14 @@ export class HashingFunction extends Construct{
         const hashingFunctionRole = new iam.Role(this, "hf-service-role-id", {
             roleName: "hf-service-role",
             description: "Service Role For BHT Hashing Function",
-            assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com")
+            assumedBy: new iam.ServicePrincipal(ServicePrincipals.LAMBDA)
           })
 
-        hashingFunctionRole.addManagedPolicy(iam.ManagedPolicy.fromAwsManagedPolicyName("service-role/AWSLambdaBasicExecutionRole"))
+        hashingFunctionRole.addManagedPolicy(
+          iam.ManagedPolicy.fromAwsManagedPolicyName(
+            ManagedPolicies.AWS_LAMBDA_BASIC_EXECUTION_ROLE
+          )
+        )
       
         const hashingFunctionRoleSQSPolicy = new iam.Policy(this, "hf-service-role-sqs-policy-id", {
           policyName: "hf-service-role-sqs-policy",
@@ -39,32 +42,16 @@ export class HashingFunction extends Construct{
           statements: [
             new iam.PolicyStatement({
               actions:[
-                "sqs:DeleteMessage",
-                "sqs:ReceiveMessage",
-                "sqs:GetQueueAttributes"
+                "sqs:SendMessage"
               ],
               resources:[
-                props.eventQueue.queueArn
+                props.requestQueue.queueArn
               ]
             })
           ]
         })
+        props.requestQueue.grantSendMessages(hashingFunctionRole)
 
-        const hashFunctionRoleSSMPolicy = new iam.Policy(this, "hf-service-role-ssm-policy-id", {
-          policyName: "hf-service-role-ssm-policy",
-          roles:[
-            hashingFunctionRole
-          ],
-          statements: [
-            new iam.PolicyStatement({
-              actions:[
-                "ssm:GetParameter",
-                "ssm:PutParameter"
-              ],
-              resources: props.buckets.map((bucket) => `arn:aws:ssm:${props.region}:${props.account}:parameter/locks/tagging/${bucket.bucketName.toLowerCase()}`)
-            })
-          ]
-        })
 
         const bucketArns = props.buckets.map((bucket) => bucket.bucketArn)
         const bucketArnsSub = bucketArns.map((bucketArn) => bucketArn + "/*")
@@ -94,7 +81,12 @@ export class HashingFunction extends Construct{
           handler: 'lambda_function.lambda_handler',
           code: lambda.Code.fromAsset(path.join(__dirname, './res/hash_function')),
           timeout: props.lambdaTimeout,
-          role: hashingFunctionRole
+          role: hashingFunctionRole,
+          environment:{
+            FEATURE_NAME: "hashtaglambda",
+            REQUEST_QUEUE_URL: props.requestQueue.queueUrl,
+            REQUEST_QUEUE_ARN: props.requestQueue.queueArn
+          }
         })
     }
 }

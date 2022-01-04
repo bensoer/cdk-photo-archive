@@ -15,10 +15,21 @@ import {
 import { BucketHashTagger } from './constructs/bucket-hash-tagger/bucket-hash-tagger';
 import { PhotoMetaTagger } from './constructs/photo-meta-tagger/photo-meta-tagger';
 import { EventLinker, LinkingConfiguration } from './constructs/event-linker/event-linker';
+import { EventQueue } from './constructs/event-queue/event-queue';
+import { DispatcherFunction } from './constructs/dispatcher-function/dispatcher-function';
+import { RequestBuilderFunction } from './constructs/request-builder-function/request-builder-function';
+import { RequestQueue } from './constructs/request-queue/request-queue';
+import { HashingFunction } from './constructs/hash-function/hashing-function';
+import { PhotoMetaFunction } from './constructs/photo-meta-function/photo-meta-function';
+import { BucketQueueEventLinker } from './constructs/bucket-queue-event-linker/bucket-queue-event-linker';
 
 export class PhotoArchiveStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
+
+    // ==========================
+    // BUCKETS
+    // ==========================
 
     const loggingBucket = new s3.Bucket(this, "pt-pa-logging-bucket", {
       bucketName: "pt-photo-archive-logging-us-east-1",
@@ -74,6 +85,75 @@ export class PhotoArchiveStack extends Stack {
       ],
     })
 
+    // ==========================
+    // LAMBDAS + QUEUES
+    // ==========================
+
+    const defaultLambdaTimeout = Duration.minutes(15)
+
+    // Bucket -> EventQueue
+    const eventQueue = new EventQueue(this, "pt-pa-event-queue-id", {
+      buckets: [
+        mainBucket
+      ],
+      eventQueueName: "pt-pa-event-queue",
+      lambdaTimeout: defaultLambdaTimeout
+    })
+
+    // RequestBuilderLambda -> RequestQueue
+    // FeatureLambda -> RequestQueue
+    const requestQueue = new RequestQueue(this, "pt-pa-request-queue-id", {
+      dispatcherLambdaTimeout: defaultLambdaTimeout,
+      requestQueueName: "pt-pa-request-queue"
+    })
+
+    // DispatchLambda -> HashingFunction (FeatureLambda)
+    const hashFunction = new HashingFunction(this, "pt-pa-hash-function-id", {
+      buckets: [
+        mainBucket
+      ],
+      requestQueue: requestQueue.requestQueue,
+      lambdaTimeout: defaultLambdaTimeout
+    })
+
+    // DispatchLambda -> PhotoMetaFunction (FeatureLambda)
+    const photoMetaTaggerFunction = new PhotoMetaFunction(this, "pt-pa-photo-meta-function-id", {
+      buckets:[
+        mainBucket
+      ],
+      requestQueue: requestQueue.requestQueue,
+      lambdaTimeout: defaultLambdaTimeout
+    })
+
+    // RequestQueue -> DispatcherFunction
+    const dispatcherFunction = new DispatcherFunction(this, "pt-pa-dispatcher-function-id", {
+      featureLambdas: [
+        hashFunction.hashingFunction,
+        photoMetaTaggerFunction.photoMetaFunction
+      ],
+      requestQueue: requestQueue.requestQueue,
+      lambdaTimeout: defaultLambdaTimeout
+    })
+
+    // EventQueue -> ReqestBuilderFunction
+    const requestBuilderFunction = new RequestBuilderFunction(this, "pt-pa-request-builder-function-id", {
+      eventQueue: eventQueue.eventQueue,
+      requestQueue: requestQueue.requestQueue,
+      lambdaTimeout: defaultLambdaTimeout,
+      region: this.region,
+      account: this.account
+    })
+
+    // ==========================
+    // EVENT LINKING
+    // ==========================
+    
+    const bucketQueueEventLinker = new BucketQueueEventLinker(this, "pt-pa-bucket-queue-event-linker-id", {
+      bucket: mainBucket,
+      queue: eventQueue.eventQueue
+    })
+
+    /**
     const bht = new BucketHashTagger(this, "pt-pa-bucket-hash-tagger-construct-id", {
       region: this.region,
       account: this.account,
@@ -108,6 +188,8 @@ export class PhotoArchiveStack extends Stack {
     const eventLinker = new EventLinker(this, "pt-pa-event-linker-construct-id", {
       linkingConfigurations: eventLinkingConfigurations
     })
+
+    **/
 
   }
 

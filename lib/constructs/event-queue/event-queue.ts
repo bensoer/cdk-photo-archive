@@ -1,4 +1,5 @@
 import { Construct } from "constructs";
+import { ServicePrincipals } from "cdk-constants";
 import {
     aws_sqs as sqs,
     aws_iam as iam,
@@ -9,6 +10,7 @@ import { Duration } from 'aws-cdk-lib'
 export interface EventQueueProps {
     buckets: Array<s3.Bucket>
     lambdaTimeout: Duration
+    eventQueueName: string
 
 }
 
@@ -22,20 +24,20 @@ export class EventQueue extends Construct{
         const lambdaTimeoutMinutes = props.lambdaTimeout.toMinutes()
         const visibilityTimeout = lambdaTimeoutMinutes * 6
 
-        this.eventQueue = new sqs.Queue(this, "bht-event-queue-id", {
-            queueName: "bht-event-queue",
+        this.eventQueue = new sqs.Queue(this, `eq-${props.eventQueueName}-id`, {
+            queueName: props.eventQueueName,
             encryption: sqs.QueueEncryption.UNENCRYPTED,
             visibilityTimeout: Duration.minutes(visibilityTimeout)
           })
       
-        const eventQueuePolicy = new sqs.QueuePolicy(this, "bht-event-queue-policy-id",{
+        const eventQueuePolicy = new sqs.QueuePolicy(this, "eq-policy-id",{
           queues: [ this.eventQueue ],
         })
     
         const bucketArns = props.buckets.map((bucket) => "arn:aws:s3:*:*:" + bucket.bucketName)
         eventQueuePolicy.document.addStatements(new iam.PolicyStatement({
             principals:[
-                new iam.ServicePrincipal("s3.amazonaws.com")
+                new iam.ServicePrincipal(ServicePrincipals.S3)
             ],
             actions:[
                 "sqs:SendMessage",

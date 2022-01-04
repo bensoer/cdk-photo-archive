@@ -6,13 +6,15 @@ import {
     aws_logs as logs,
     custom_resources as cr,
     aws_s3 as s3,
-    aws_sqs as sqs
+    aws_sqs as sqs,
+    hashMapper
 } from "aws-cdk-lib"
 import {
     Duration,
     CustomResource
 } from "aws-cdk-lib"
 import * as path from 'path'
+import * as crypto from 'crypto'
 
 export interface LinkingConfiguration {
     bucket:s3.Bucket
@@ -88,9 +90,16 @@ export class EventLinker extends Construct{
           logRetention: logs.RetentionDays.ONE_DAY,
         })
 
+        
+
         for(const lc of props.linkingConfigurations){
-          const eventLinkingCustomResource = new CustomResource(this, `el-custom-resource-${lc.bucketName}-id`, {
-            resourceType: `Custom::EventLinker-${lc.bucketName}`,
+          const crHash = crypto.createHash('sha256')
+          crHash.update(lc.bucket.bucketArn + lc.bucket.bucketName + lc.sqsQueue.queueArn + lc.lambda.functionArn)
+          const hash = crHash.digest('base64')
+          const alphanumericHash = hash.replace(/\W/g, '')
+          const crCode = alphanumericHash.substr(0, 15)
+          const eventLinkingCustomResource = new CustomResource(this, `el-custom-resource-${crCode}-id`, {
+            resourceType: `Custom::EventLinker-${crCode}`,
             serviceToken: eventLinkingCustomResourceProvider.serviceToken,
             properties: {
               "bucketArn": lc.bucket.bucketArn,

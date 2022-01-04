@@ -8,16 +8,12 @@ import {
     aws_ssm as ssm
 } from "aws-cdk-lib"
 import * as path from 'path'
-import { LayerVersion } from "aws-cdk-lib/aws-lambda";
-
+import { ManagedPolicies, ServicePrincipals } from "cdk-constants";
 
 export interface PhotoMetaFunctionProps{
-    eventQueue: sqs.Queue,
+    requestQueue: sqs.Queue,
     buckets: Array<s3.Bucket>,
     lambdaTimeout: Duration,
-    account: string,
-    region: string
-
 }
 
 export class PhotoMetaFunction extends Construct{
@@ -31,45 +27,32 @@ export class PhotoMetaFunction extends Construct{
         const photoMetaFunctionRole = new iam.Role(this, "pmf-service-role-id", {
             roleName: "pmf-service-role",
             description: "Service Role For Photo Meta Function",
-            assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com")
+            assumedBy: new iam.ServicePrincipal(ServicePrincipals.LAMBDA)
           })
 
-        photoMetaFunctionRole.addManagedPolicy(iam.ManagedPolicy.fromAwsManagedPolicyName("service-role/AWSLambdaBasicExecutionRole"))
+        photoMetaFunctionRole.addManagedPolicy(
+          iam.ManagedPolicy.fromAwsManagedPolicyName(
+            ManagedPolicies.AWS_LAMBDA_BASIC_EXECUTION_ROLE
+          )
+        )
       
-        const photoMetaFunctionRoleSQSPolicy = new iam.Policy(this, "pmf-service-role-sqs-policy-id", {
-          policyName: "pmf-service-role-sqs-policy",
+        const photoMetaFunctionRoleSQSSendPolicy = new iam.Policy(this, "pmf-service-role-sqs-send-policy-id", {
+          policyName: "pmf-service-role-sqs-send-policy",
           roles: [
             photoMetaFunctionRole
           ],
           statements: [
             new iam.PolicyStatement({
               actions:[
-                "sqs:DeleteMessage",
-                "sqs:ReceiveMessage",
-                "sqs:GetQueueAttributes"
+                "sqs:SendMessage"
               ],
               resources:[
-                props.eventQueue.queueArn
+                props.requestQueue.queueArn
               ]
             })
           ]
         })
-
-        const photoMetaFunctionRoleSSMPolicy = new iam.Policy(this, "pmf-service-role-ssm-policy-id", {
-          policyName: "pmf-service-role-ssm-policy",
-          roles:[
-            photoMetaFunctionRole
-          ],
-          statements: [
-            new iam.PolicyStatement({
-              actions:[
-                "ssm:GetParameter",
-                "ssm:PutParameter"
-              ],
-              resources: props.buckets.map((bucket) => `arn:aws:ssm:${props.region}:${props.account}:parameter/locks/tagging/${bucket.bucketName.toLowerCase()}`)
-            })
-          ]
-        })
+        props.requestQueue.grantSendMessages(photoMetaFunctionRole)
 
         const bucketArns = props.buckets.map((bucket) => bucket.bucketArn)
         const bucketArnsSub = bucketArns.map((bucketArn) => bucketArn + "/*")
@@ -96,7 +79,7 @@ export class PhotoMetaFunction extends Construct{
           compatibleRuntimes:[
             lambda.Runtime.PYTHON_3_8
           ],
-          code: lambda.Code.fromAsset("./res/exifread/exifread_layer.zip"),
+          code: lambda.Code.fromAsset(path.join(__dirname, "./res/exifread/exifread_layer.zip")),
           description: "exifread library lambda layer"
         })
 
@@ -111,7 +94,12 @@ export class PhotoMetaFunction extends Construct{
           handler: 'lambda_function.lambda_handler',
           code: lambda.Code.fromAsset(path.join(__dirname, './res/photo_meta_function')),
           timeout: props.lambdaTimeout,
-          role: photoMetaFunctionRole
+          role: photoMetaFunctionRole,
+          environment:{
+            FEATURE_NAME: "photometataglambda",
+            REQUEST_QUEUE_URL: props.requestQueue.queueUrl,
+            REQUEST_QUEUE_ARN: props.requestQueue.queueArn
+          }
         })
     }
 }

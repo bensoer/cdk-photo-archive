@@ -36,6 +36,7 @@ export class BucketHashTagger extends Construct{
 
         // SQS Event Queue and associated policies
         this.eventQueue = new EventQueue(this, "bht-event-queue-construct-id", {
+          eventQueueName: "bht-event-queue",
           buckets: Array.from(props.buckets.values()),
           lambdaTimeout: lambdaTimeout
         })
