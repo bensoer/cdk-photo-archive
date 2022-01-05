@@ -118,6 +118,7 @@ def lambda_handler(event, context):
             for index, feature in enumerate(event["features"]):
                 if feature["name"] == FEATURE_NAME:
                     event["features"][index]["completed"] = True
+                    event["numberOfFeaturesCompleted"] = current_number_features_completed
                     break
 
             # put into the requestQueue
