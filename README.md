@@ -13,14 +13,14 @@ This project is still heavily under development
 
 
 # TODO
-- Set "feature" names as more global - its hardcoded currently
+- Set "feature" names as more global - its hardcoded currently - DONE
 - Ability to import existing S3 buckets instead of having CDK project create and manage them - avoid users from having to dev CDK, make this a setting
 - Configuration file
-    - Ability to enable/disable which "features" to have applied to archive
+    - Ability to enable/disable which "features" to have applied to archive - DONE
     - Ability to specify naming of S3 Buckets, SQS Queues and Lambda Functions
         - V1 - able to specify a prefix so that its unique within account / unique within AWS
         - V2 - full name overrides
-- Implement creation of SSM Parameter store - housing enable/disable and lambda ARNs
+- Implement creation of SSM Parameter store - housing enable/disable and lambda ARNs - DONE
     - Improve dynamicness of running "features" - users should be able to enable/disable in Parameter Store or defaults in CDK and things will adjust appropriatly
 - Store status information of each photo in dynamoDB table ?
     - Make this optional, enable/disable also as a setting in the configuration file

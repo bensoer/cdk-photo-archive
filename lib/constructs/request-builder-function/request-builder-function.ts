@@ -55,6 +55,7 @@ export class RequestBuilderFunction extends Construct{
             })
           ]
         })
+        props.eventQueue.grantConsumeMessages(requestBuilderFunctionRole)
 
         const requestBuilderFunctionRoleSQSSendPolicy = new iam.Policy(this, "rbf-service-role-sqs-send-policy-id", {
             policyName: "rbf-service-role-sqs-send-policy",
@@ -72,6 +73,7 @@ export class RequestBuilderFunction extends Construct{
               })
             ]
           })
+          props.requestQueue.grantSendMessages(requestBuilderFunctionRole)
 
         const photoMetaFunctionRoleSSMPolicy = new iam.Policy(this, "rbf-service-role-ssm-policy-id", {
           policyName: "rbf-service-role-ssm-policy",

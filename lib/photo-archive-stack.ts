@@ -1,4 +1,4 @@
-import { Duration, RemovalPolicy, Stack, StackProps } from 'aws-cdk-lib';
+import { Duration, FeatureFlags, RemovalPolicy, Stack, StackProps } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import * as path from 'path';
 import { 
@@ -22,74 +22,51 @@ import { RequestQueue } from './constructs/request-queue/request-queue';
 import { HashingFunction } from './constructs/hash-function/hashing-function';
 import { PhotoMetaFunction } from './constructs/photo-meta-function/photo-meta-function';
 import { BucketQueueEventLinker } from './constructs/bucket-queue-event-linker/bucket-queue-event-linker';
+import { IConfiguration } from './conf/i-configuration';
+import { Configuration } from '../conf/configuration';
+import { PhotoArchiveBuckets } from './constructs/photo-archive-buckets/photo-archive-buckets';
+import { Features } from './enums/features';
+
+export interface PhotoArchiveStackProps extends StackProps {
+  configuration: Configuration
+}
 
 export class PhotoArchiveStack extends Stack {
-  constructor(scope: Construct, id: string, props?: StackProps) {
+
+   public readonly lambdaMap: Map<Features, string> = new Map()
+
+  constructor(scope: Construct, id: string, props: PhotoArchiveStackProps) {
     super(scope, id, props);
+
+    const configuration: IConfiguration = props.configuration.getConfiguration()
 
     // ==========================
     // BUCKETS
     // ==========================
 
-    const loggingBucket = new s3.Bucket(this, "pt-pa-logging-bucket", {
-      bucketName: "pt-photo-archive-logging-us-east-1",
-      encryption: s3.BucketEncryption.S3_MANAGED,
-      enforceSSL: true,
+    const photoArchiveBuckets = new PhotoArchiveBuckets(this, "pt-pa-photo-archive-buckets-id", {
+      // whether or not to create or import the buckets
+      createBuckets: !props.configuration.isExistingBuckets(),
+      createBucketsWithPrefix: configuration.bucketNamePrefix,
+      // if we are importing buckets, then give the list of ARNs of buckets to import
+      bucketsToImport: configuration.useExistingBuckets,
       
-      // temp to make building and destroying easier
-      //autoDeleteObjects: true,
-      removalPolicy: RemovalPolicy.RETAIN,
+      // transition settings
+      defaultInfrequentAccessTransitionDuration: Duration.days(90),
+      defaultGlacierAccessTransitionDuration: Duration.days(120),
 
-      publicReadAccess: false,
-      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL
+      switchToInfrequentAccessTierAfterDays: configuration.switchToInfrequentAccessTierAfterDays,
+      switchToGlacierAccessTierAfterDays: configuration.switchToGlacierAccessTierAfterDays
     })
-    
-    const mainBucket = new s3.Bucket(this, "pt-pa-main-bucket", {
-      bucketName: "pt-photo-archive-us-east-1",
-      encryption: s3.BucketEncryption.S3_MANAGED,
-      enforceSSL: true,
+    const mainBucket = photoArchiveBuckets.mainBucket
 
-      // temp to make building and destroying easier
-      //autoDeleteObjects: true,
-      removalPolicy: RemovalPolicy.RETAIN,
-
-      serverAccessLogsBucket: loggingBucket,
-      serverAccessLogsPrefix: 'photo-archive-logs',
-      publicReadAccess: false,
-      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
-      inventories: [
-        {
-          frequency: s3.InventoryFrequency.WEEKLY,
-          includeObjectVersions: s3.InventoryObjectVersion.CURRENT,
-          destination: {
-            bucket: loggingBucket,
-            prefix: 'photo-archive-inventory'
-          }
-        }
-      ],
-      lifecycleRules: [
-        {
-          enabled: true,
-          id: 'pa-archive-scheduling',
-          transitions:[
-            {
-              storageClass: s3.StorageClass.INFREQUENT_ACCESS,
-              transitionAfter: Duration.days(90)
-            },
-            {
-              storageClass: s3.StorageClass.GLACIER,
-              transitionAfter: Duration.days(120)
-            }
-          ]
-        }
-      ],
-    })
 
     // ==========================
     // LAMBDAS + QUEUES
     // ==========================
 
     const defaultLambdaTimeout = Duration.minutes(15)
+    const featureLambdas = new Array<lambda.Function>()
 
     // Bucket -> EventQueue
     const eventQueue = new EventQueue(this, "pt-pa-event-queue-id", {
@@ -108,29 +85,34 @@ export class PhotoArchiveStack extends Stack {
     })
 
     // DispatchLambda -> HashingFunction (FeatureLambda)
-    const hashFunction = new HashingFunction(this, "pt-pa-hash-function-id", {
-      buckets: [
-        mainBucket
-      ],
-      requestQueue: requestQueue.requestQueue,
-      lambdaTimeout: defaultLambdaTimeout
-    })
-
+    if(configuration.features.includes(Features.HASH_TAG)){
+      const hashFunction = new HashingFunction(this, "pt-pa-hash-function-id", {
+        buckets: [
+          mainBucket
+        ],
+        requestQueue: requestQueue.requestQueue,
+        lambdaTimeout: defaultLambdaTimeout
+      })
+      this.lambdaMap.set(Features.HASH_TAG, hashFunction.hashingFunction.functionArn)
+      featureLambdas.push(hashFunction.hashingFunction)
+    }
+    
     // DispatchLambda -> PhotoMetaFunction (FeatureLambda)
-    const photoMetaTaggerFunction = new PhotoMetaFunction(this, "pt-pa-photo-meta-function-id", {
-      buckets:[
-        mainBucket
-      ],
-      requestQueue: requestQueue.requestQueue,
-      lambdaTimeout: defaultLambdaTimeout
-    })
-
+    if(configuration.features.includes(Features.PHOTO_META_TAG)){
+      const photoMetaTaggerFunction = new PhotoMetaFunction(this, "pt-pa-photo-meta-function-id", {
+        buckets:[
+          mainBucket
+        ],
+        requestQueue: requestQueue.requestQueue,
+        lambdaTimeout: defaultLambdaTimeout
+      })
+      this.lambdaMap.set(Features.PHOTO_META_TAG, photoMetaTaggerFunction.photoMetaFunction.functionArn)
+      featureLambdas.push(photoMetaTaggerFunction.photoMetaFunction)
+    }
+    
     // RequestQueue -> DispatcherFunction
     const dispatcherFunction = new DispatcherFunction(this, "pt-pa-dispatcher-function-id", {
-      featureLambdas: [
-        hashFunction.hashingFunction,
-        photoMetaTaggerFunction.photoMetaFunction
-      ],
+      featureLambdas: featureLambdas,
       requestQueue: requestQueue.requestQueue,
       lambdaTimeout: defaultLambdaTimeout
     })
