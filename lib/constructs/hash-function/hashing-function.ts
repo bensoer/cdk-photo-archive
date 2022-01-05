@@ -8,6 +8,7 @@ import {
 import { Duration } from 'aws-cdk-lib'
 import * as path from 'path'
 import { ManagedPolicies, ServicePrincipals } from "cdk-constants";
+import { Features } from "../../enums/features";
 
 export interface HashingFunctionProps {
     buckets: Array<s3.Bucket>
@@ -83,7 +84,7 @@ export class HashingFunction extends Construct{
           timeout: props.lambdaTimeout,
           role: hashingFunctionRole,
           environment:{
-            FEATURE_NAME: "hashtaglambda",
+            FEATURE_NAME: Features.HASH_TAG,
             REQUEST_QUEUE_URL: props.requestQueue.queueUrl,
             REQUEST_QUEUE_ARN: props.requestQueue.queueArn
           }

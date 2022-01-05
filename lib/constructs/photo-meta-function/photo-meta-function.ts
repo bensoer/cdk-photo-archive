@@ -9,6 +9,7 @@ import {
 } from "aws-cdk-lib"
 import * as path from 'path'
 import { ManagedPolicies, ServicePrincipals } from "cdk-constants";
+import { Features } from "../../enums/features";
 
 export interface PhotoMetaFunctionProps{
     requestQueue: sqs.Queue,
@@ -96,7 +97,7 @@ export class PhotoMetaFunction extends Construct{
           timeout: props.lambdaTimeout,
           role: photoMetaFunctionRole,
           environment:{
-            FEATURE_NAME: "photometataglambda",
+            FEATURE_NAME: Features.PHOTO_META_TAG,
             REQUEST_QUEUE_URL: props.requestQueue.queueUrl,
             REQUEST_QUEUE_ARN: props.requestQueue.queueArn
           }
