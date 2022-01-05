@@ -26,6 +26,7 @@ This project is still heavily under development
     - Make this optional, enable/disable also as a setting in the configuration file
     - Entry stores Bucket, Key and which "features" have been applied to the photo
 - Complete README documentation for user friendly installation and uninstallation
+- Make naming consistent between Features - SSM Param name, Lambda Name, Feature Name, Feature Enum Name
 
 # Welcome to your CDK TypeScript project!
 
