@@ -118,8 +118,8 @@ cdk-photo-archive also deploys a number of settings to SSM Parameter Settings on
 - Store status information of each photo in dynamoDB table ?
     - Make this optional, enable/disable also as a setting in the configuration file
     - Entry stores Bucket, Key and which "features" have been applied to the photo
-- ~~Complete README documentation for user friendly installation and uninstallation~~
-- Make naming consistent between Features - SSM Param name, Lambda Name, Feature Name, Feature Enum Name
+- ~~Complete README documentation for user friendly installation and uninstallation~~ - DONE
+- ~~Make naming consistent between Features - SSM Param name, Lambda Name, Feature Name, Feature Enum Name~~ - DONE
 
 
 ## Welcome to your CDK TypeScript project!
