@@ -95,6 +95,8 @@ useExistingBuckets: [
 ```
 **Note:** If at a later time, you want to revert this, remove the setting from `conf/configuration.ts`, set the value to `undefined` or leave it as an empty array
 
+**Note:** If you have already deploy the cdk-photo-archive and it has created the buckets for you. You will need to first fully destroy the stack with `cdk destroy --all` before configuring BYOB and redeploying.
+
 **Tip:** cdk-photo-archive will create the archive bucket for you if you do not supply one. In the event you need to entirely delete the cdk-photo-archive stack. The archive bucket will not be deleted. When restoring the stack though, the CDK will error that the bucket it wishes to create already exists. You can work around this issue by then copying the ARN of the bucket created previously from the CDK and treating it like BYOB.
 
 # Configuration After Deployment

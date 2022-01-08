@@ -40,10 +40,6 @@ export class Configuration extends AbstractConfiguration{
                 Features.HASH_TAG,
                 Features.PHOTO_META_TAG,
                 Features.PHOTO_REKOG_TAG
-            ],
-
-            useExistingBuckets:[
-                "arn:aws:s3:::pt-test-importable-bucket"
             ]
         }
     }
