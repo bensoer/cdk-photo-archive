@@ -22,6 +22,11 @@ class ExifTagNames(enum.Enum):
     IMG_SHUTTER_SPEED = "EXIF ExposureTime"
     IMG_APERATURE = "EXIF ApertureValue"
 
+class TagKeys(enum.Enum):
+    CAMERA_AND_LENSE_INFO = 'Camera and Lense Information'
+    PHOTO_INFORMATION = 'Photo Information'
+    PHOTO_DATE = "Photo Date"
+
 PHOTO_FILE_TYPES = ["jpg", "jpeg", "png", "dng"]
 
 FEATURE_NAME = environ.get("FEATURE_NAME")
@@ -68,14 +73,6 @@ def lambda_handler(event, context):
 
         exif = exifread.process_file(bs)
 
-        #for tag in exif.keys():
-        #    print("{} : {}".format(tag, exif[tag]))
-
-        # Convert the Exif Shutter Speed To Human Readable String
-        #shutter_speed_string = convert_exif_shutter_speed(
-        #    exif[ExifTagNames.IMG_SHUTTER_SPEED.value]
-        #)
-
         print("EXIF Information Fetched. Loading Tags")
         print("Now Fetching And Updating Tags")
 
@@ -85,15 +82,15 @@ def lambda_handler(event, context):
             Key=key,
         )
         tagset = list(filter(lambda tagset: tagset['Key'] not in [
-            'Camera and Lense Information',
-            'Photo Information',
-            'Photo Date'
+            TagKeys.CAMERA_AND_LENSE_INFO.value,
+            TagKeys.PHOTO_INFORMATION.value,
+            TagKeys.PHOTO_DATE.value
         ], get_object_tagging_response['TagSet']))
 
         # Extend with new values
         tagset.extend([
             {
-                'Key': 'Camera and Lense Information',
+                'Key': TagKeys.CAMERA_AND_LENSE_INFO.value,
                 'Value': '{} {} - {}'.format(
                     exif[ExifTagNames.CAMERA_MAKE.value],
                     exif[ExifTagNames.CAMERA_MODEL.value],
@@ -101,7 +98,7 @@ def lambda_handler(event, context):
                 )
             },
             {
-                'Key': 'Photo Information',
+                'Key': TagKeys.PHOTO_INFORMATION.value,
                 'Value': 'Shutter: {} Aperature: {} ISO: {} Resolution: {}x{} Focal Length: {}'.format(
                     exif[ExifTagNames.IMG_SHUTTER_SPEED.value],
                     exif[ExifTagNames.IMG_APERATURE.value],
@@ -112,7 +109,7 @@ def lambda_handler(event, context):
                 )
             },
             {
-                'Key': 'Photo Date',
+                'Key': TagKeys.PHOTO_DATE.value,
                 'Value': '{}'.format(
                     exif[ExifTagNames.IMG_DATETIME.value]
                 )

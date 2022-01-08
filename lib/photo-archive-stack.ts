@@ -4,17 +4,17 @@ import {
   aws_lambda as lambda,
   aws_s3 as s3,
 } from 'aws-cdk-lib';
-import { EventQueue } from './constructs/event-queue/event-queue';
+import { EventQueue } from './constructs/queues/event-queue/event-queue';
 import { DispatcherFunction } from './constructs/dispatcher-function/dispatcher-function';
 import { RequestBuilderFunction } from './constructs/request-builder-function/request-builder-function';
-import { RequestQueue } from './constructs/request-queue/request-queue';
-import { HashingFunction } from './constructs/hash-function/hashing-function';
-import { PhotoMetaFunction } from './constructs/photo-meta-function/photo-meta-function';
+import { RequestQueue } from './constructs/queues/request-queue/request-queue';
+import { HashTagFunction } from './constructs/features/hash-tag-function/hash-tag-function';
+import { PhotoMetaTagFunction } from './constructs/features/photo-meta-tag-function/photo-meta-tag-function';
 import { BucketQueueEventLinker } from './constructs/bucket-queue-event-linker/bucket-queue-event-linker';
 import { IConfiguration } from './conf/i-configuration';
 import { Configuration } from '../conf/configuration';
 import { Features } from './enums/features';
-import { RekogFunction } from './constructs/rekog-function/rekog-function';
+import { PhotoRekogTagFunction } from './constructs/features/photo-rekog-tag-function/photo-rekog-tag-function';
 import { HashUtil } from './utils/hashutil';
 
 export interface PhotoArchiveStackProps extends StackProps {
@@ -55,18 +55,18 @@ export class PhotoArchiveStack extends Stack {
 
     // DispatchLambda -> HashingFunction (FeatureLambda)
     if(configuration.features.includes(Features.HASH_TAG)){
-      const hashFunction = new HashingFunction(this, "pa-hash-function-id", {
+      const hashFunction = new HashTagFunction(this, "pa-hash-tag-function-id", {
         buckets: mainBuckets,
         requestQueue: requestQueue.requestQueue,
         lambdaTimeout: defaultLambdaTimeout
       })
-      this.lambdaMap.set(Features.HASH_TAG, hashFunction.hashingFunction.functionArn)
-      featureLambdas.push(hashFunction.hashingFunction)
+      this.lambdaMap.set(Features.HASH_TAG, hashFunction.hashTagFunction.functionArn)
+      featureLambdas.push(hashFunction.hashTagFunction)
     }
     
     // DispatchLambda -> PhotoMetaFunction (FeatureLambda)
     if(configuration.features.includes(Features.PHOTO_META_TAG)){
-      const photoMetaTaggerFunction = new PhotoMetaFunction(this, "pa-photo-meta-function-id", {
+      const photoMetaTaggerFunction = new PhotoMetaTagFunction(this, "pa-photo-meta-tag-function-id", {
         buckets: mainBuckets,
         requestQueue: requestQueue.requestQueue,
         lambdaTimeout: defaultLambdaTimeout
@@ -77,7 +77,7 @@ export class PhotoArchiveStack extends Stack {
 
     // DispatchLambda -> RekogFunction (FeatureLambda)
     if(configuration.features.includes(Features.PHOTO_REKOG_TAG)){
-      const rekogFunction = new RekogFunction(this, "pa-rekog-function-id", {
+      const rekogFunction = new PhotoRekogTagFunction(this, "pa-photo-rekog-tag-function-id", {
         buckets:mainBuckets,
         requestQueue: requestQueue.requestQueue,
         lambdaTimeout: defaultLambdaTimeout

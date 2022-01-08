@@ -9,25 +9,25 @@ import {
 } from "aws-cdk-lib"
 import * as path from 'path'
 import { ManagedPolicies, ServicePrincipals } from "cdk-constants";
-import { Features } from "../../enums/features";
+import { Features } from "../../../enums/features";
 
-export interface RekogFunctionProps{
+export interface PhotoRekogTagFunctionProps{
     requestQueue: sqs.Queue,
     buckets: Array<s3.IBucket>,
     lambdaTimeout: Duration,
 }
 
-export class RekogFunction extends Construct{
+export class PhotoRekogTagFunction extends Construct{
 
     public readonly rekogFunction: lambda.Function
 
-    constructor(scope: Construct, id:string, props: RekogFunctionProps){
+    constructor(scope: Construct, id:string, props: PhotoRekogTagFunctionProps){
         super(scope, id)
 
 
-        const rekogFunctionRole = new iam.Role(this, "rf-service-role-id", {
-            roleName: "rf-service-role",
-            description: "Service Role For Rekognition Function",
+        const rekogFunctionRole = new iam.Role(this, "prtf-service-role-id", {
+            roleName: "prtf-service-role",
+            description: "Service Role For Photo Rekognition Tag Function",
             assumedBy: new iam.ServicePrincipal(ServicePrincipals.LAMBDA)
           })
 
@@ -37,8 +37,8 @@ export class RekogFunction extends Construct{
           )
         )
       
-        const rekogFunctionRoleSQSSendPolicy = new iam.Policy(this, "rf-service-role-sqs-send-policy-id", {
-          policyName: "rf-service-role-sqs-send-policy",
+        const rekogFunctionRoleSQSSendPolicy = new iam.Policy(this, "prtf-service-role-sqs-send-policy-id", {
+          policyName: "prtf-service-role-sqs-send-policy",
           roles: [
             rekogFunctionRole
           ],
@@ -54,8 +54,8 @@ export class RekogFunction extends Construct{
           ]
         })
 
-        const rekogFunctionRoleRekognitionPolicy = new iam.Policy(this, "rf-service-role-rekognition-policy-id", {
-            policyName: "rf-service-role-rekognition-policy",
+        const rekogFunctionRoleRekognitionPolicy = new iam.Policy(this, "prtf-service-role-rekognition-policy-id", {
+            policyName: "prtf-service-role-rekognition-policy",
             roles:[
                 rekogFunctionRole
             ],
@@ -75,8 +75,8 @@ export class RekogFunction extends Construct{
         const bucketArns = props.buckets.map((bucket) => bucket.bucketArn)
         const bucketArnsSub = bucketArns.map((bucketArn) => bucketArn + "/*")
         const mergedBucketArns = bucketArns.concat(bucketArnsSub)
-        const photoMetaFunctionRoleS3Policy = new iam.Policy(this, "pmf-service-role-s3-policy-id", {
-          policyName: "pmf-service-role-s3-policy",
+        const photoMetaFunctionRoleS3Policy = new iam.Policy(this, "prtf-service-role-s3-policy-id", {
+          policyName: "prtf-service-role-s3-policy",
           roles:[
             rekogFunctionRole
           ],
@@ -95,7 +95,7 @@ export class RekogFunction extends Construct{
 
         this.rekogFunction = new lambda.Function(this, `${Features.PHOTO_REKOG_TAG}-function-id`, {
           functionName: `${Features.PHOTO_REKOG_TAG}-function`,
-          description: 'Rekognition Function. Tagging S3 Photos with Contents Labels',
+          description: 'Photo Rekognition Tag Function. Tagging S3 Photos with Contents Labels Using AWS Rekognition',
           runtime: lambda.Runtime.PYTHON_3_8,
           memorySize: 128,
           handler: 'lambda_function.lambda_handler',

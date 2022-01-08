@@ -2,11 +2,7 @@ import { Duration, RemovalPolicy, Stack, StackProps } from 'aws-cdk-lib';
 import { 
     aws_s3 as s3,
 } from 'aws-cdk-lib'
-import { CfnDisk } from 'aws-cdk-lib/aws-lightsail';
 import { Construct } from "constructs";
-import { Context } from "vm";
-import { Configuration } from "../../../conf/configuration";
-import { IConfiguration } from "../../conf/i-configuration";
 import { HashUtil } from '../../utils/hashutil';
 
 export interface PhotoArchiveBucketsProps {

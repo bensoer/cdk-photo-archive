@@ -9,25 +9,25 @@ import {
 } from "aws-cdk-lib"
 import * as path from 'path'
 import { ManagedPolicies, ServicePrincipals } from "cdk-constants";
-import { Features } from "../../enums/features";
+import { Features } from "../../../enums/features";
 
-export interface PhotoMetaFunctionProps{
+export interface PhotoMetaTagFunctionProps{
     requestQueue: sqs.Queue,
     buckets: Array<s3.IBucket>,
     lambdaTimeout: Duration,
 }
 
-export class PhotoMetaFunction extends Construct{
+export class PhotoMetaTagFunction extends Construct{
 
     public readonly photoMetaFunction: lambda.Function
 
-    constructor(scope: Construct, id:string, props: PhotoMetaFunctionProps){
+    constructor(scope: Construct, id:string, props: PhotoMetaTagFunctionProps){
         super(scope, id)
 
 
-        const photoMetaFunctionRole = new iam.Role(this, "pmf-service-role-id", {
-            roleName: "pmf-service-role",
-            description: "Service Role For Photo Meta Function",
+        const photoMetaFunctionRole = new iam.Role(this, "pmtf-service-role-id", {
+            roleName: "pmtf-service-role",
+            description: "Service Role For Photo Meta Tag Function",
             assumedBy: new iam.ServicePrincipal(ServicePrincipals.LAMBDA)
           })
 
@@ -37,8 +37,8 @@ export class PhotoMetaFunction extends Construct{
           )
         )
       
-        const photoMetaFunctionRoleSQSSendPolicy = new iam.Policy(this, "pmf-service-role-sqs-send-policy-id", {
-          policyName: "pmf-service-role-sqs-send-policy",
+        const photoMetaFunctionRoleSQSSendPolicy = new iam.Policy(this, "pmtf-service-role-sqs-send-policy-id", {
+          policyName: "pmtf-service-role-sqs-send-policy",
           roles: [
             photoMetaFunctionRole
           ],
@@ -58,8 +58,8 @@ export class PhotoMetaFunction extends Construct{
         const bucketArns = props.buckets.map((bucket) => bucket.bucketArn)
         const bucketArnsSub = bucketArns.map((bucketArn) => bucketArn + "/*")
         const mergedBucketArns = bucketArns.concat(bucketArnsSub)
-        const photoMetaFunctionRoleS3Policy = new iam.Policy(this, "pmf-service-role-s3-policy-id", {
-          policyName: "pmf-service-role-s3-policy",
+        const photoMetaFunctionRoleS3Policy = new iam.Policy(this, "pmtf-service-role-s3-policy-id", {
+          policyName: "pmtf-service-role-s3-policy",
           roles:[
             photoMetaFunctionRole
           ],
@@ -76,8 +76,8 @@ export class PhotoMetaFunction extends Construct{
           
         })
 
-        const exifReadLayer = new lambda.LayerVersion(this, "pmf-exifread-layer-id", {
-          layerVersionName: "pmf-exifread-layer",
+        const exifReadLayer = new lambda.LayerVersion(this, "pmtf-exifread-layer-id", {
+          layerVersionName: "pmtf-exifread-layer",
           compatibleRuntimes:[
             lambda.Runtime.PYTHON_3_8
           ],
@@ -85,9 +85,9 @@ export class PhotoMetaFunction extends Construct{
           description: "exifread library lambda layer"
         })
 
-        this.photoMetaFunction = new lambda.Function(this, `${Features.PHOTO_META_TAG}-function-id`, {
+        this.photoMetaFunction = new lambda.Function(this, `p,tf-${Features.PHOTO_META_TAG}-function-id`, {
           functionName: `${Features.PHOTO_META_TAG}-function`,
-          description: 'Photo Meta Function. Tagging S3 photo resources with photo metrics.',
+          description: 'Photo Meta Tag Function. Tagging S3 photo resources with photo metrics.',
           runtime: lambda.Runtime.PYTHON_3_8,
           layers:[
             exifReadLayer

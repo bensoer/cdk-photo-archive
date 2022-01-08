@@ -8,24 +8,24 @@ import {
 import { Duration } from 'aws-cdk-lib'
 import * as path from 'path'
 import { ManagedPolicies, ServicePrincipals } from "cdk-constants";
-import { Features } from "../../enums/features";
+import { Features } from "../../../enums/features";
 
-export interface HashingFunctionProps {
+export interface HashTagFunctionProps {
     buckets: Array<s3.IBucket>
     requestQueue: sqs.Queue
     lambdaTimeout: Duration
 }
 
-export class HashingFunction extends Construct{
+export class HashTagFunction extends Construct{
 
-    public readonly hashingFunction : lambda.Function
+    public readonly hashTagFunction : lambda.Function
 
-    constructor(scope:Construct, id:string, props: HashingFunctionProps){
+    constructor(scope:Construct, id:string, props: HashTagFunctionProps){
         super(scope, id)
 
-        const hashingFunctionRole = new iam.Role(this, "hf-service-role-id", {
-            roleName: "hf-service-role",
-            description: "Service Role For BHT Hashing Function",
+        const hashingFunctionRole = new iam.Role(this, "htf-service-role-id", {
+            roleName: "htf-service-role",
+            description: "Service Role For Hash Tag Function",
             assumedBy: new iam.ServicePrincipal(ServicePrincipals.LAMBDA)
           })
 
@@ -35,8 +35,8 @@ export class HashingFunction extends Construct{
           )
         )
       
-        const hashingFunctionRoleSQSPolicy = new iam.Policy(this, "hf-service-role-sqs-policy-id", {
-          policyName: "hf-service-role-sqs-policy",
+        const hashingFunctionRoleSQSPolicy = new iam.Policy(this, "htf-service-role-sqs-policy-id", {
+          policyName: "htf-service-role-sqs-policy",
           roles: [
             hashingFunctionRole
           ],
@@ -57,8 +57,8 @@ export class HashingFunction extends Construct{
         const bucketArns = props.buckets.map((bucket) => bucket.bucketArn)
         const bucketArnsSub = bucketArns.map((bucketArn) => bucketArn + "/*")
         const mergedBucketArns = bucketArns.concat(bucketArnsSub)
-        const hashingFunctionRoleS3Policy = new iam.Policy(this, "hf-service-role-s3-policy-id", {
-          policyName: "hf-service-role-s3-policy",
+        const hashingFunctionRoleS3Policy = new iam.Policy(this, "htf-service-role-s3-policy-id", {
+          policyName: "htf-service-role-s3-policy",
           roles:[
             hashingFunctionRole
           ],
@@ -75,13 +75,13 @@ export class HashingFunction extends Construct{
           
         })
 
-        this.hashingFunction = new lambda.Function(this, `${Features.HASH_TAG}-function-id`, {
+        this.hashTagFunction = new lambda.Function(this, `htf-${Features.HASH_TAG}-function-id`, {
           functionName: `${Features.HASH_TAG}-function`,
-          description: 'Hashing Function. Tagging S3 resources with MD5, SHA1, SHA256 and SHA512 hashes',
+          description: 'Hash Tag Function. Tagging S3 resources with MD5, SHA1, SHA256 and SHA512 hashes',
           runtime: lambda.Runtime.PYTHON_3_7,
           memorySize: 1024,
           handler: 'lambda_function.lambda_handler',
-          code: lambda.Code.fromAsset(path.join(__dirname, './res/hash_function')),
+          code: lambda.Code.fromAsset(path.join(__dirname, './res')),
           timeout: props.lambdaTimeout,
           role: hashingFunctionRole,
           environment:{
