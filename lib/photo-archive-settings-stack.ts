@@ -1,28 +1,8 @@
-import { Duration, RemovalPolicy, Stack, StackProps } from 'aws-cdk-lib';
+import { Stack, StackProps } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
-import * as path from 'path';
 import { 
-  aws_s3 as s3, 
-  aws_sqs as sqs, 
-  aws_s3_notifications as s3n,
-  aws_lambda as lambda,
-  aws_lambda_event_sources as lambda_event_sources,
-  aws_iam as iam,
-  aws_logs as logs,
   aws_ssm as ssm,
-  custom_resources as cr,
-  CustomResource
 } from 'aws-cdk-lib';
-import { BucketHashTagger } from './constructs/bucket-hash-tagger/bucket-hash-tagger';
-import { PhotoMetaTagger } from './constructs/photo-meta-tagger/photo-meta-tagger';
-import { EventLinker, LinkingConfiguration } from './constructs/event-linker/event-linker';
-import { EventQueue } from './constructs/event-queue/event-queue';
-import { DispatcherFunction } from './constructs/dispatcher-function/dispatcher-function';
-import { RequestBuilderFunction } from './constructs/request-builder-function/request-builder-function';
-import { RequestQueue } from './constructs/request-queue/request-queue';
-import { HashingFunction } from './constructs/hash-function/hashing-function';
-import { PhotoMetaFunction } from './constructs/photo-meta-function/photo-meta-function';
-import { BucketQueueEventLinker } from './constructs/bucket-queue-event-linker/bucket-queue-event-linker';
 import { Features } from './enums/features';
 
 export interface PhotoArchiveSettingsStackProps extends StackProps {

@@ -2,10 +2,12 @@ import { Duration, RemovalPolicy, Stack, StackProps } from 'aws-cdk-lib';
 import { 
     aws_s3 as s3,
 } from 'aws-cdk-lib'
+import { CfnDisk } from 'aws-cdk-lib/aws-lightsail';
 import { Construct } from "constructs";
 import { Context } from "vm";
 import { Configuration } from "../../../conf/configuration";
 import { IConfiguration } from "../../conf/i-configuration";
+import { HashUtil } from '../../utils/hashutil';
 
 export interface PhotoArchiveBucketsProps {
     defaultInfrequentAccessTransitionDuration: Duration,
@@ -15,12 +17,13 @@ export interface PhotoArchiveBucketsProps {
     createBuckets: boolean,
     bucketsToImport?: Array<string>
     createBucketsWithPrefix?: string
+    appendRegionToBucketName: boolean
 }
 
 export class PhotoArchiveBuckets extends Construct {
 
-    public readonly mainBucket: s3.Bucket
-    public readonly loggingBucket: s3.Bucket
+    public readonly mainBuckets: Array<s3.IBucket> = new Array<s3.IBucket>()
+    public readonly loggingBucket?: s3.Bucket
 
     constructor(scope: Construct , id: string, props: PhotoArchiveBucketsProps){
         super(scope, id)
@@ -32,8 +35,18 @@ export class PhotoArchiveBuckets extends Construct {
                 prefix = props.createBucketsWithPrefix
             }
 
+            let loggingBucketName = `${prefix}-photo-archive-logging`
+            if(props.appendRegionToBucketName){
+                loggingBucketName += `-${Stack.of(this).region}`
+            }
+
+            let mainBucketName = `${prefix}-photo-archive`
+            if(props.appendRegionToBucketName){
+                mainBucketName += `-${Stack.of(this).region}`
+            }
+
             this.loggingBucket = new s3.Bucket(this, `${prefix}-pa-logging-bucket-id`, {
-              bucketName: `${prefix}-photo-archive-logging-us-east-1`,
+              bucketName: loggingBucketName,
               encryption: s3.BucketEncryption.S3_MANAGED,
               enforceSSL: true,
               
@@ -45,36 +58,41 @@ export class PhotoArchiveBuckets extends Construct {
               blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL
             })
       
-            this.mainBucket = new s3.Bucket(this, `${prefix}-pa-main-bucket-id`, {
-              bucketName: `${prefix}-photo-archive-us-east-1`,
-              encryption: s3.BucketEncryption.S3_MANAGED,
-              enforceSSL: true,
-        
-              // temp to make building and destroying easier
-              //autoDeleteObjects: true,
-              removalPolicy: RemovalPolicy.RETAIN,
-        
-              serverAccessLogsBucket: this.loggingBucket,
-              serverAccessLogsPrefix: 'photo-archive-logs',
-              publicReadAccess: false,
-              blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
-              inventories: [
-                {
-                  frequency: s3.InventoryFrequency.WEEKLY,
-                  includeObjectVersions: s3.InventoryObjectVersion.CURRENT,
-                  destination: {
-                    bucket: this.loggingBucket,
-                    prefix: 'photo-archive-inventory'
-                  }
-                }
-              ],
-              lifecycleRules: this.generateLifecycleRules(props),
-            })
+
+            this.mainBuckets.push(
+                new s3.Bucket(this, `${prefix}-pa-main-bucket-id`, {
+                    bucketName: mainBucketName,
+                    encryption: s3.BucketEncryption.S3_MANAGED,
+                    enforceSSL: true,
+                
+                    // temp to make building and destroying easier
+                    //autoDeleteObjects: true,
+                    removalPolicy: RemovalPolicy.RETAIN,
+                
+                    serverAccessLogsBucket: this.loggingBucket,
+                    serverAccessLogsPrefix: 'photo-archive-logs',
+                    publicReadAccess: false,
+                    blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+                    inventories: [
+                        {
+                        frequency: s3.InventoryFrequency.WEEKLY,
+                        includeObjectVersions: s3.InventoryObjectVersion.CURRENT,
+                        destination: {
+                            bucket: this.loggingBucket,
+                            prefix: 'photo-archive-inventory'
+                        }
+                        }
+                    ],
+                    lifecycleRules: this.generateLifecycleRules(props),
+                })
+            )
         }else{
-            // now we import the buckets
-            // TODO: Import the buckets
-
-
+            for(const bucketArn of props.bucketsToImport!!){
+                const idSafeHash = HashUtil.generateIDSafeHash(bucketArn, 15)
+                this.mainBuckets.push(
+                    s3.Bucket.fromBucketArn(this, `pa-main-archive-bucket-${idSafeHash}`, bucketArn)
+                )
+            }
         }
 
     }

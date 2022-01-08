@@ -8,7 +8,7 @@ import {
 import { Duration } from 'aws-cdk-lib'
 
 export interface EventQueueProps {
-    buckets: Array<s3.Bucket>
+    buckets: Array<s3.IBucket>
     lambdaTimeout: Duration
     eventQueueName: string
 

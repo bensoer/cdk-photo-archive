@@ -4,37 +4,57 @@ import * as cdk from 'aws-cdk-lib';
 import { PhotoArchiveStack } from '../lib/photo-archive-stack';
 import { Configuration } from '../conf/configuration';
 import { PhotoArchiveSettingsStack } from '../lib/photo-archive-settings-stack';
+import { PhotoArchiveBucketsStack } from '../lib/photo-archive-buckets-stack';
 
 const app = new cdk.App();
 
 const configuration = new Configuration()
+const deploymentRegion = configuration.getConfiguration().deploymentRegion
 
-const photoArchiveStack = new PhotoArchiveStack(app, 'photo-archive-stack-us-east-1', {
-  /* If you don't specify 'env', this stack will be environment-agnostic.
-   * Account/Region-dependent features and context lookups will not work,
-   * but a single synthesized template can be deployed anywhere. */
+let photoArchiveStackName = configuration.getConfiguration().photoArchiveStackName ?? `photo-archive-stack`
+let photoArchiveSettingsStackName = configuration.getConfiguration().photoArchiveSettingsStackName ?? `photo-archive-settings-stack`
+let photoArchiveBucketsStackName = configuration.getConfiguration().photoArchiveBucketsStackName ?? `photo-archive-bucket-stack`
 
-  /* Uncomment the next line to specialize this stack for the AWS Account
-   * and Region that are implied by the current CLI configuration. */
-  // env: { account: process.env.CDK_DEFAULT_ACCOUNT, region: process.env.CDK_DEFAULT_REGION },
+const appendRegionToStackNames = configuration.getConfiguration().appendDeploymentRegionToStackNames ?? true
+if(appendRegionToStackNames){
+  photoArchiveStackName += `-${deploymentRegion}`
+  photoArchiveSettingsStackName += `-${deploymentRegion}`
+  photoArchiveBucketsStackName += `-${deploymentRegion}`
+}
 
-  /* Uncomment the next line if you know exactly what Account and Region you
-   * want to deploy the stack to. */
-  // env: { account: '123456789012', region: 'us-east-1' },
+
+const photoArchiveBucketsStack = new PhotoArchiveBucketsStack(app, `photo-archive-bucket-stack-${deploymentRegion}-id`,{
+  stackName: photoArchiveBucketsStackName,
+  description: "Stack containing S3 archive bucket configuration for photo archiving infrastructure",
+  configuration: configuration,
+
+  env:{
+    region: deploymentRegion,
+    account: process.env.CDK_DEFAULT_ACCOUNT
+  }
+})
+
+const photoArchiveStack = new PhotoArchiveStack(app, `photo-archive-stack-${deploymentRegion}-id`, {
+  stackName: photoArchiveStackName,
+  description: "Main stack containing architecture for photo archive infrastructure",
 
   configuration: configuration,
-  env:{
-    region: "us-east-1"
-  }
+  mainBuckets: photoArchiveBucketsStack.mainBuckets,
 
-  /* For more information, see https://docs.aws.amazon.com/cdk/latest/guide/environments.html */
+  env:{
+    region: deploymentRegion,
+    account: process.env.CDK_DEFAULT_ACCOUNT
+  }
 });
 
-new PhotoArchiveSettingsStack(app, 'photo-archive-settings-stack-us-east-1', {
+new PhotoArchiveSettingsStack(app, `photo-archive-settings-stack-${deploymentRegion}-id`, {
+  stackName: photoArchiveSettingsStackName,
+  description: "Stack containing settings related infrastructure for photo archive infrastructure",
   features: configuration.getConfiguration().features,
   lambdaMap: photoArchiveStack.lambdaMap,
 
   env:{
-    region: "us-east-1"
+    region: deploymentRegion,
+    account: process.env.CDK_DEFAULT_ACCOUNT
   }
 })

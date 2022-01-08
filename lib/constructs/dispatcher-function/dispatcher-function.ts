@@ -23,7 +23,6 @@ export class DispatcherFunction extends Construct{
     constructor(scope: Construct, id:string, props: DispatcherFunctionProps){
         super(scope, id)
 
-
         const dispatcherFunctionRole = new iam.Role(this, "df-service-role-id", {
             roleName: "df-service-role",
             description: "Service Role For Dispatcher Function",
@@ -54,7 +53,7 @@ export class DispatcherFunction extends Construct{
             })
           ]
         })
-        props.requestQueue.grantSendMessages(dispatcherFunctionRole)
+        //props.requestQueue.grantSendMessages(dispatcherFunctionRole)
 
         const dispatcherFunctionRoleLambdaInvokePolicy = new iam.Policy(this, "df-service-role-lambda-invoke-policy-id", {
             policyName: "df-service-role-lambda-invoke-policy",
@@ -83,6 +82,8 @@ export class DispatcherFunction extends Construct{
           role: dispatcherFunctionRole
         })
 
-        this.dispatcherFunction.addEventSource(new SqsEventSource(props.requestQueue))
+        this.dispatcherFunction.addEventSource(new SqsEventSource(props.requestQueue, {
+          batchSize: 1
+        }))
     }
 }

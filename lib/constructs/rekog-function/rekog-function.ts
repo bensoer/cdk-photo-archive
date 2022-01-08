@@ -11,36 +11,36 @@ import * as path from 'path'
 import { ManagedPolicies, ServicePrincipals } from "cdk-constants";
 import { Features } from "../../enums/features";
 
-export interface PhotoMetaFunctionProps{
+export interface RekogFunctionProps{
     requestQueue: sqs.Queue,
     buckets: Array<s3.IBucket>,
     lambdaTimeout: Duration,
 }
 
-export class PhotoMetaFunction extends Construct{
+export class RekogFunction extends Construct{
 
-    public readonly photoMetaFunction: lambda.Function
+    public readonly rekogFunction: lambda.Function
 
-    constructor(scope: Construct, id:string, props: PhotoMetaFunctionProps){
+    constructor(scope: Construct, id:string, props: RekogFunctionProps){
         super(scope, id)
 
 
-        const photoMetaFunctionRole = new iam.Role(this, "pmf-service-role-id", {
-            roleName: "pmf-service-role",
-            description: "Service Role For Photo Meta Function",
+        const rekogFunctionRole = new iam.Role(this, "rf-service-role-id", {
+            roleName: "rf-service-role",
+            description: "Service Role For Rekognition Function",
             assumedBy: new iam.ServicePrincipal(ServicePrincipals.LAMBDA)
           })
 
-        photoMetaFunctionRole.addManagedPolicy(
+        rekogFunctionRole.addManagedPolicy(
           iam.ManagedPolicy.fromAwsManagedPolicyName(
             ManagedPolicies.AWS_LAMBDA_BASIC_EXECUTION_ROLE
           )
         )
       
-        const photoMetaFunctionRoleSQSSendPolicy = new iam.Policy(this, "pmf-service-role-sqs-send-policy-id", {
-          policyName: "pmf-service-role-sqs-send-policy",
+        const rekogFunctionRoleSQSSendPolicy = new iam.Policy(this, "rf-service-role-sqs-send-policy-id", {
+          policyName: "rf-service-role-sqs-send-policy",
           roles: [
-            photoMetaFunctionRole
+            rekogFunctionRole
           ],
           statements: [
             new iam.PolicyStatement({
@@ -53,6 +53,23 @@ export class PhotoMetaFunction extends Construct{
             })
           ]
         })
+
+        const rekogFunctionRoleRekognitionPolicy = new iam.Policy(this, "rf-service-role-rekognition-policy-id", {
+            policyName: "rf-service-role-rekognition-policy",
+            roles:[
+                rekogFunctionRole
+            ],
+            statements: [
+                new iam.PolicyStatement({
+                    actions:[
+                        "rekognition:DetectLabels"
+                    ],
+                    resources:[
+                        "*"
+                    ]
+                })
+            ]
+        })
         //props.requestQueue.grantSendMessages(photoMetaFunctionRole)
 
         const bucketArns = props.buckets.map((bucket) => bucket.bucketArn)
@@ -61,7 +78,7 @@ export class PhotoMetaFunction extends Construct{
         const photoMetaFunctionRoleS3Policy = new iam.Policy(this, "pmf-service-role-s3-policy-id", {
           policyName: "pmf-service-role-s3-policy",
           roles:[
-            photoMetaFunctionRole
+            rekogFunctionRole
           ],
           statements: [
             new iam.PolicyStatement({
@@ -76,31 +93,21 @@ export class PhotoMetaFunction extends Construct{
           
         })
 
-        const exifReadLayer = new lambda.LayerVersion(this, "pmf-exifread-layer-id", {
-          layerVersionName: "pmf-exifread-layer",
-          compatibleRuntimes:[
-            lambda.Runtime.PYTHON_3_8
-          ],
-          code: lambda.Code.fromAsset(path.join(__dirname, "./res/exifread/exifread_layer.zip")),
-          description: "exifread library lambda layer"
-        })
-
-        this.photoMetaFunction = new lambda.Function(this, `${Features.PHOTO_META_TAG}-function-id`, {
-          functionName: `${Features.PHOTO_META_TAG}-function`,
-          description: 'Photo Meta Function. Tagging S3 photo resources with photo metrics.',
+        this.rekogFunction = new lambda.Function(this, `${Features.PHOTO_REKOG_TAG}-function-id`, {
+          functionName: `${Features.PHOTO_REKOG_TAG}-function`,
+          description: 'Rekognition Function. Tagging S3 Photos with Contents Labels',
           runtime: lambda.Runtime.PYTHON_3_8,
-          layers:[
-            exifReadLayer
-          ],
-          memorySize: 1024,
+          memorySize: 128,
           handler: 'lambda_function.lambda_handler',
-          code: lambda.Code.fromAsset(path.join(__dirname, './res/photo_meta_function')),
+          code: lambda.Code.fromAsset(path.join(__dirname, './res')),
           timeout: props.lambdaTimeout,
-          role: photoMetaFunctionRole,
+          role: rekogFunctionRole,
           environment:{
             FEATURE_NAME: Features.PHOTO_META_TAG,
             REQUEST_QUEUE_URL: props.requestQueue.queueUrl,
-            REQUEST_QUEUE_ARN: props.requestQueue.queueArn
+            REQUEST_QUEUE_ARN: props.requestQueue.queueArn,
+            REKOG_MIN_CONFIDENCE: "75.0",
+            REKOG_MAX_LABELS: "10"
           }
         })
     }

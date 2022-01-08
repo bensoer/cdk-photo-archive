@@ -21,11 +21,11 @@ def lambda_handler(event, context):
                     lambda_client.invoke(
                         FunctionName=feature["lambdaArn"],
                         InvocationType='Event',
-                        Payload=request_event
+                        Payload=json.dumps(request_event)
                     )
 
                     # we don't want to run features in parallel. we wait for the next execution of dispatcher
-                    break
+                    return
             
             # If we get here, then we looked over all features and found all of them complete
             print("Walked Through All Features And They Are All Either Completed Or Not Available. Nothing Left To Do")

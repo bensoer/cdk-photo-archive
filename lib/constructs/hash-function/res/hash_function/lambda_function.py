@@ -48,7 +48,7 @@ def lambda_handler(event, context):
         Bucket=bucket,
         Key=key,
     )
-    tagset = get_object_tagging_response['TagSet']
+    tagset = list(filter(lambda tagset: tagset['Key'] not in ['MD5', 'SHA1', 'SHA256', 'SHA512'], get_object_tagging_response['TagSet']))
 
     tagset.extend([
         {
@@ -92,10 +92,8 @@ def lambda_handler(event, context):
 
         # put into the requestQueue
         sqs.send_message(
-            sqs.send_message(
-                QueueUrl=REQUEST_QUEUE_URL,
-                MessageBody=json.dumps(event)
-            )
+            QueueUrl=REQUEST_QUEUE_URL,
+            MessageBody=json.dumps(event)
         )
     
     print("Feature Processing Complete. Terminating")

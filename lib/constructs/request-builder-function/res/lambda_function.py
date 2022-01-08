@@ -24,11 +24,11 @@ def valid_event(s3_event) -> bool:
 
 def get_feature_lambda_arn_if_enabled(feature_ssm_name:str):
     feature_enabled_reponse = ssm.get_parameter(
-        Path="/pa/features/{}/enabled".format(feature_ssm_name)
+        Name="/pa/features/{}/enabled".format(feature_ssm_name)
     )
     if feature_enabled_reponse["Parameter"]["Value"] == "TRUE":
         feature_lambda_arn_response = ssm.get_parameter(
-            Path="/pa/features/{}/lambda/arn".format(feature_ssm_name)
+            Name="/pa/features/{}/lambda/arn".format(feature_ssm_name)
         )
         return feature_lambda_arn_response["Parameter"]["Value"]
 
@@ -53,7 +53,7 @@ def generate_available_features() -> list:
     available_features = []
 
     features_list_response = ssm.get_parameter(
-        Path="/pa/features"
+        Name="/pa/features"
     )
     features_list = features_list_response["Parameter"]["Value"].split(",")
 

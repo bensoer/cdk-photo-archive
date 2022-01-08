@@ -6,6 +6,7 @@ import math
 import enum
 import time
 from os import environ
+from io import BytesIO
 
 s3 = boto3.client("s3")
 sqs = boto3.client("sqs")
@@ -19,9 +20,9 @@ class ExifTagNames(enum.Enum):
     IMG_DATETIME = "Image DateTime"
     IMG_ISO = "EXIF ISOSpeedRatings"
     IMG_SHUTTER_SPEED = "EXIF ExposureTime"
-    IMG_APERATURE = "EXIF AperatureValue"
+    IMG_APERATURE = "EXIF ApertureValue"
 
-PHOTO_FILE_TYPES = [".jpg", ".jpeg", ".png", ".dng"]
+PHOTO_FILE_TYPES = ["jpg", "jpeg", "png", "dng"]
 
 FEATURE_NAME = environ.get("FEATURE_NAME")
 REQUEST_QUEUE_URL = environ.get("REQUEST_QUEUE_URL")
@@ -32,9 +33,19 @@ def convert_exif_shutter_speed(exif_shutter_speed_value:str) -> str:
     bottom_number = int(exif_shutter_speed_value.split("/")[1])
 
     decimal_value = top_number / bottom_number
-    seconds_over_one = math.pow(2, decimal_value)
+    seconds_over_one = math.pow(2, decimal_value / 2)
 
-    shutter_speed_string = "1/{}".format(seconds_over_one)
+    shutter_speed_string = "1/{}".format(round(seconds_over_one))
+    return shutter_speed_string
+
+def convert_exif_aperture_speed(exif_aperture_value:str) -> str:
+    top_number = int(exif_aperture_value.split("/")[0])
+    bottom_number = int(exif_aperture_value.split("/")[1])
+
+    decimal_value = top_number / bottom_number
+    seconds_over_one = math.pow(2, decimal_value / 2)
+
+    shutter_speed_string = "1/{}".format(round(seconds_over_one, 1))
     return shutter_speed_string
 
 
@@ -42,7 +53,7 @@ def lambda_handler(event, context):
     
     bucket = event["bucketName"]
     key = event["key"]
-    key_file_format = key.split(".")[len(key.split("."))-1]
+    key_file_format = (key.split(".")[len(key.split("."))-1]).strip()
 
     if key_file_format.lower() not in PHOTO_FILE_TYPES:
         print("File {} Is Not A Valid Photo Image. Can Not Process".format(key))
@@ -53,13 +64,17 @@ def lambda_handler(event, context):
         
         response = s3.get_object(Bucket=bucket, Key=key)
         content_stream = response['Body']
+        bs = BytesIO(content_stream.read())
 
-        exif = exifread.process_file(content_stream)
+        exif = exifread.process_file(bs)
+
+        #for tag in exif.keys():
+        #    print("{} : {}".format(tag, exif[tag]))
 
         # Convert the Exif Shutter Speed To Human Readable String
-        shutter_speed_string = convert_exif_shutter_speed(
-            exif[ExifTagNames.IMG_SHUTTER_SPEED.value]
-        )
+        #shutter_speed_string = convert_exif_shutter_speed(
+        #    exif[ExifTagNames.IMG_SHUTTER_SPEED.value]
+        #)
 
         print("EXIF Information Fetched. Loading Tags")
         print("Now Fetching And Updating Tags")
@@ -69,12 +84,16 @@ def lambda_handler(event, context):
             Bucket=bucket,
             Key=key,
         )
-        tagset = get_object_tagging_response['TagSet']
+        tagset = list(filter(lambda tagset: tagset['Key'] not in [
+            'Camera and Lense Information',
+            'Photo Information',
+            'Photo Date'
+        ], get_object_tagging_response['TagSet']))
 
         # Extend with new values
         tagset.extend([
             {
-                'Key': 'Camera & Lense Information',
+                'Key': 'Camera and Lense Information',
                 'Value': '{} {} - {}'.format(
                     exif[ExifTagNames.CAMERA_MAKE.value],
                     exif[ExifTagNames.CAMERA_MODEL.value],
@@ -84,7 +103,7 @@ def lambda_handler(event, context):
             {
                 'Key': 'Photo Information',
                 'Value': 'Shutter: {} Aperature: {} ISO: {} Resolution: {}x{} Focal Length: {}'.format(
-                    shutter_speed_string,
+                    exif[ExifTagNames.IMG_SHUTTER_SPEED.value],
                     exif[ExifTagNames.IMG_APERATURE.value],
                     exif[ExifTagNames.IMG_ISO.value],
                     exif[ExifTagNames.IMG_X_RESOLUTION.value],
@@ -110,23 +129,22 @@ def lambda_handler(event, context):
         )
         print("Tags Applied. Evaluating Event Features")
 
-        current_number_features_completed = event["numberOfFeaturesCompleted"] + 1
-        if current_number_features_completed < len(event["features"]):
-            # there are more features to complete.
+    current_number_features_completed = event["numberOfFeaturesCompleted"] + 1
+    if current_number_features_completed < len(event["features"]):
+        # there are more features to complete.
 
-            # mark ours as done
-            for index, feature in enumerate(event["features"]):
-                if feature["name"] == FEATURE_NAME:
-                    event["features"][index]["completed"] = True
-                    event["numberOfFeaturesCompleted"] = current_number_features_completed
-                    break
+        # mark ours as done
+        for index, feature in enumerate(event["features"]):
+            if feature["name"] == FEATURE_NAME:
+                event["features"][index]["completed"] = True
+                event["numberOfFeaturesCompleted"] = current_number_features_completed
+                break
 
-            # put into the requestQueue
-            sqs.send_message(
-                sqs.send_message(
-                    QueueUrl=REQUEST_QUEUE_URL,
-                    MessageBody=json.dumps(event)
-                )
-            )
+        # put into the requestQueue
+        sqs.send_message(
+            QueueUrl=REQUEST_QUEUE_URL,
+            MessageBody=json.dumps(event)
+        )
         
-        print("Feature Processing Complete. Terminating")
+    
+    print("Feature Processing Complete. Terminating")

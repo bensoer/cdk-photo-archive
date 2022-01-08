@@ -11,7 +11,7 @@ import { ManagedPolicies, ServicePrincipals } from "cdk-constants";
 import { Features } from "../../enums/features";
 
 export interface HashingFunctionProps {
-    buckets: Array<s3.Bucket>
+    buckets: Array<s3.IBucket>
     requestQueue: sqs.Queue
     lambdaTimeout: Duration
 }
@@ -51,7 +51,7 @@ export class HashingFunction extends Construct{
             })
           ]
         })
-        props.requestQueue.grantSendMessages(hashingFunctionRole)
+        //props.requestQueue.grantSendMessages(hashingFunctionRole)
 
 
         const bucketArns = props.buckets.map((bucket) => bucket.bucketArn)
@@ -66,7 +66,8 @@ export class HashingFunction extends Construct{
             new iam.PolicyStatement({
               actions:[
                 "s3:GetObject",
-                "s3:PutObjectTagging"
+                "s3:PutObjectTagging",
+                "s3:GetObjectTagging"
               ],
               resources: mergedBucketArns
             })
@@ -74,8 +75,8 @@ export class HashingFunction extends Construct{
           
         })
 
-        this.hashingFunction = new lambda.Function(this, "hf-id", {
-          functionName: 'hashing-function',
+        this.hashingFunction = new lambda.Function(this, `${Features.HASH_TAG}-function-id`, {
+          functionName: `${Features.HASH_TAG}-function`,
           description: 'Hashing Function. Tagging S3 resources with MD5, SHA1, SHA256 and SHA512 hashes',
           runtime: lambda.Runtime.PYTHON_3_7,
           memorySize: 1024,

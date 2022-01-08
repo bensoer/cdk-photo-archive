@@ -1,5 +1,5 @@
 import { Construct } from "constructs";
-import { Duration } from "aws-cdk-lib"
+import { Duration, Stack } from "aws-cdk-lib"
 import {
     aws_lambda as lambda,
     aws_iam as iam,
@@ -7,14 +7,13 @@ import {
 } from "aws-cdk-lib"
 import * as path from 'path'
 import { ManagedPolicies, ServicePrincipals } from "cdk-constants";
+import { SqsEventSource } from "aws-cdk-lib/aws-lambda-event-sources";
 
 
 export interface RequestBuilderFunctionProps{
     eventQueue: sqs.Queue,
     requestQueue: sqs.Queue,
-    lambdaTimeout: Duration,
-    account: string,
-    region: string
+    lambdaTimeout: Duration
 }
 
 export class RequestBuilderFunction extends Construct{
@@ -24,6 +23,8 @@ export class RequestBuilderFunction extends Construct{
     constructor(scope: Construct, id:string, props: RequestBuilderFunctionProps){
         super(scope, id)
 
+        const account = Stack.of(this).account
+        const region = Stack.of(this).region
 
         const requestBuilderFunctionRole = new iam.Role(this, "rbf-service-role-id", {
             roleName: "rbf-service-role",
@@ -55,25 +56,26 @@ export class RequestBuilderFunction extends Construct{
             })
           ]
         })
-        props.eventQueue.grantConsumeMessages(requestBuilderFunctionRole)
+        //props.eventQueue.grantConsumeMessages(requestBuilderFunctionRole)
+        
 
         const requestBuilderFunctionRoleSQSSendPolicy = new iam.Policy(this, "rbf-service-role-sqs-send-policy-id", {
             policyName: "rbf-service-role-sqs-send-policy",
             roles: [
-              requestBuilderFunctionRole
+                requestBuilderFunctionRole
             ],
             statements: [
-              new iam.PolicyStatement({
+                new iam.PolicyStatement({
                 actions:[
-                  "sqs:SendMessage"
+                    "sqs:SendMessage"
                 ],
                 resources:[
-                  props.requestQueue.queueArn
+                    props.requestQueue.queueArn
                 ]
-              })
+                })
             ]
-          })
-          props.requestQueue.grantSendMessages(requestBuilderFunctionRole)
+        })
+          //props.requestQueue.grantSendMessages(requestBuilderFunctionRole)
 
         const photoMetaFunctionRoleSSMPolicy = new iam.Policy(this, "rbf-service-role-ssm-policy-id", {
           policyName: "rbf-service-role-ssm-policy",
@@ -86,7 +88,7 @@ export class RequestBuilderFunction extends Construct{
                 "ssm:GetParameter"
               ],
               resources: [
-                `arn:aws:ssm:${props.region}:${props.account}:parameter/pa/*`
+                `arn:aws:ssm:${region}:${account}:parameter/pa/*`
               ]
             })
           ]
@@ -107,5 +109,11 @@ export class RequestBuilderFunction extends Construct{
               REQUEST_QUEUE_URL: props.requestQueue.queueUrl
           }
         })
+
+        this.requestBuilderFunction.addEventSource(new SqsEventSource(props.eventQueue, {
+            batchSize: 1
+        }))
+
+
     }
 }
