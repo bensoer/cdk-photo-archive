@@ -48,7 +48,7 @@ Within `conf/configuration.ts` contains `getConfiguration()` method which return
 | `switchToGlacierAccessTierAfterDays` | `number` | NO | 120 | How many days until a file is moved to Glacier Access Tier |
 | `photoArchiveStackName` | `string` | NO | photo-archive-stack | CloudFormation stack name for the photo archive stack |
 | `photoArchiveSettingsStackName` | `string` | NO | photo-archive-settings-stack | CloudFormation stack name for the phot archive settings stack|
-| `photoArchiveBucketStackName` | `string` | NO | photo-archive-bucket-stack` | CloudFormation stack name for the photo archive bucket stack name |
+| `photoArchiveBucketStackName` | `string` | NO | photo-archive-bucket-stack | CloudFormation stack name for the photo archive bucket stack name |
 
 You can also view a breakdown of what each and every setting does within `lib/conf/i-configuration.ts`
 
@@ -57,9 +57,9 @@ Feature lambdas are lambdas that execute a certain task every time a photo is up
 
 | Name | Features Enum Value | Description |
 | ---- | ------------------- | ----------- |
-| Hash Lambda | `Features.HASH_TAG` | Tags each file with an MD5, SHA1, SHA256 and SHA512 hash of the file |
-| Photo Meta Lambda | `Features.PHOTO_META_TAG` | Tags each photo with Camera & Lense information, Photo Information (ISO, Aperture, Shutter Speed, etc) and the Image Date based on EXIF data within the photo. Only valid for JPEG, JPG, PNG and DNG files. |
-| Rekog Lambda | `Features.PHOTO_REKOG_TAG` | Uses AWS Rekognition to add up to 10 labels describing the contents of the photo. Only valid for JPEG, JPG and PNG files. |
+| Hash Tag Lambda | `Features.HASH_TAG` | Tags each file with an MD5, SHA1, SHA256 and SHA512 hash of the file |
+| Photo Meta Tag Lambda | `Features.PHOTO_META_TAG` | Tags each photo with Camera & Lense information, Photo Information (ISO, Aperture, Shutter Speed, etc) and the Image Date based on EXIF data within the photo. Only valid for JPEG, JPG, PNG and DNG files. |
+| Photo Rekog Tag Lambda | `Features.PHOTO_REKOG_TAG` | Uses AWS Rekognition to add up to 10 labels describing the contents of the photo. Only valid for JPEG, JPG and PNG files. |
 
 An example of settings the features setting may look like this:
 ```javascript
