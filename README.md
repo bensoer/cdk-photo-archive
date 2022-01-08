@@ -95,6 +95,8 @@ useExistingBuckets: [
 ```
 **Note:** If at a later time, you want to revert this, remove the setting from `conf/configuration.ts`, set the value to `undefined` or leave it as an empty array
 
+**Tip:** cdk-photo-archive will create the archive bucket for you if you do not supply one. In the event you need to entirely delete the cdk-photo-archive stack. The archive bucket will not be deleted. When restoring the stack though, the CDK will error that the bucket it wishes to create already exists. You can work around this issue by then copying the ARN of the bucket created previously from the CDK and treating it like BYOB.
+
 # Configuration After Deployment
 cdk-photo-archive also deploys a number of settings to SSM Parameter Settings on AWS. These can be found under `/pa` section. Changes to these settings can be made to effect the system in real-time if need be, without having to re-deploy from the CDK. *WARNING* If possible, it is better to redeploy changes from the CDK. The settings available within SSM Parameter Store are as follows:
 

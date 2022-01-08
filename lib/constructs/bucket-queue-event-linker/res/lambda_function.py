@@ -100,4 +100,19 @@ def on_delete(event):
 
     s3_client = boto3.client('s3')
 
+    try:
+        bucket_linking_response = s3_client.put_bucket_notification_configuration(
+            Bucket=bucketName,
+            NotificationConfiguration={}
+        )
+        print("Updating Linking Bucket Events To SQS Complete")
+        print(bucket_linking_response)
+    except botocore.exceptions.ClientError as error:
+        print(error)
+        print(error.response)
+        raise error
+    except Exception as e:
+        print(e)
+        raise e
+
     return { "Status": "SUCCESS"}
