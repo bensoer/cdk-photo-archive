@@ -3,7 +3,8 @@ import {
     aws_iam as iam,
     aws_lambda as lambda,
     aws_sqs as sqs,
-    aws_s3 as s3
+    aws_s3 as s3,
+    aws_dynamodb as dynamodb
 } from 'aws-cdk-lib'
 import { Duration } from 'aws-cdk-lib'
 import * as path from 'path'
@@ -13,7 +14,8 @@ import { Features } from "../../../enums/features";
 export interface HashTagFunctionProps {
     buckets: Array<s3.IBucket>
     requestQueue: sqs.Queue
-    lambdaTimeout: Duration
+    lambdaTimeout: Duration,
+    dynamoMetricsQueue?: sqs.Queue
 }
 
 export class HashTagFunction extends Construct{
@@ -87,7 +89,8 @@ export class HashTagFunction extends Construct{
           environment:{
             FEATURE_NAME: Features.HASH_TAG,
             REQUEST_QUEUE_URL: props.requestQueue.queueUrl,
-            REQUEST_QUEUE_ARN: props.requestQueue.queueArn
+            REQUEST_QUEUE_ARN: props.requestQueue.queueArn,
+            DYNAMODB_METRICS_QUEUE_URL: props.dynamoMetricsQueue?.queueUrl ?? "Invalid"
           }
         })
     }

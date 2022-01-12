@@ -124,9 +124,13 @@ cdk-photo-archive also deploys a number of settings to SSM Parameter Settings on
     - Entry stores Bucket, Key and which "features" have been applied to the photo
     - Entry stores all EXIF tag data about the photo
     - Entry stores all Rekognition labels at default validity (55% vs 75% which is tagged)
+- Create an API endpoint for accessing  dynamoDB table information ?
+- Create a Reactjs App to view dynamoDB table information ?
 - ~~Complete README documentation for user friendly installation and uninstallation~~ - DONE
 - ~~Make naming consistent between Features - SSM Param name, Lambda Name, Feature Name, Feature Enum Name~~ - DONE
-
+- Custom Resources - Retrieve Data Back in the CDK: https://baihuqian.github.io/2020-12-17-lambda-based-cdk-custom-resource-with-input-and-output/
+    - CustomResource for bucket handling ?
+    - CustomResource for dynamodb handling ?
 
 ## Welcome to your CDK TypeScript project!
 

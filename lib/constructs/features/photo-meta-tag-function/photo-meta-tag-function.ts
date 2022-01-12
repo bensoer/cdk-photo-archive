@@ -5,7 +5,7 @@ import {
     aws_iam as iam,
     aws_sqs as sqs,
     aws_s3 as s3,
-    aws_ssm as ssm
+    aws_dynamodb as dynamodb
 } from "aws-cdk-lib"
 import * as path from 'path'
 import { ManagedPolicies, ServicePrincipals } from "cdk-constants";
@@ -15,6 +15,7 @@ export interface PhotoMetaTagFunctionProps{
     requestQueue: sqs.Queue,
     buckets: Array<s3.IBucket>,
     lambdaTimeout: Duration,
+    dynamoMetricsQueue?: sqs.Queue
 }
 
 export class PhotoMetaTagFunction extends Construct{
@@ -100,7 +101,8 @@ export class PhotoMetaTagFunction extends Construct{
           environment:{
             FEATURE_NAME: Features.PHOTO_META_TAG,
             REQUEST_QUEUE_URL: props.requestQueue.queueUrl,
-            REQUEST_QUEUE_ARN: props.requestQueue.queueArn
+            REQUEST_QUEUE_ARN: props.requestQueue.queueArn,
+            DYNAMODB_METRICS_QUEUE_URL: props.dynamoMetricsQueue?.queueUrl ?? "Invalid"
           }
         })
     }

@@ -75,4 +75,11 @@ export interface IConfiguration {
      */
     deploymentRegion: Regions
 
+    /**
+     * Enalbe/Disable the dynamo metrics table. This is a table that will store verbose detailed information about each
+     * photo processed by each of the feature methods. Additional information that is not tagged, will be stored and
+     * can be queries from here. Leave undefined for default value. Default value is FALSE
+     */
+    enableDynamoMetricsTable?: boolean
+
 }

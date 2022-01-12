@@ -1,8 +1,9 @@
-import { Duration, Stack, StackProps } from 'aws-cdk-lib';
+import { Duration, RemovalPolicy, Stack, StackProps } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import { 
   aws_lambda as lambda,
   aws_s3 as s3,
+  aws_dynamodb as dynamodb,
 } from 'aws-cdk-lib';
 import { EventQueue } from './constructs/queues/event-queue/event-queue';
 import { DispatcherFunction } from './constructs/dispatcher-function/dispatcher-function';
@@ -16,6 +17,7 @@ import { Configuration } from '../conf/configuration';
 import { Features } from './enums/features';
 import { PhotoRekogTagFunction } from './constructs/features/photo-rekog-tag-function/photo-rekog-tag-function';
 import { HashUtil } from './utils/hashutil';
+import { DynamoMetricsTable } from './constructs/dynamo-metrics-table/dynamo-metrics-table';
 
 export interface PhotoArchiveStackProps extends StackProps {
   configuration: Configuration
@@ -31,7 +33,19 @@ export class PhotoArchiveStack extends Stack {
 
     const configuration: IConfiguration = props.configuration.getConfiguration()
     const mainBuckets = props.mainBuckets
-    
+
+    // =========================
+    // DYNAMO DB
+    // =========================
+
+    let dynamoMetricsTable: DynamoMetricsTable | undefined = undefined
+    const enableDynamoMetricsTable = configuration.enableDynamoMetricsTable ?? false
+    if(enableDynamoMetricsTable){
+      dynamoMetricsTable = new DynamoMetricsTable(this, "pa-dynamo-metrics-table-id", {
+
+      })
+    }
+        
     // ==========================
     // LAMBDAS + QUEUES
     // ==========================
@@ -58,7 +72,8 @@ export class PhotoArchiveStack extends Stack {
       const hashFunction = new HashTagFunction(this, "pa-hash-tag-function-id", {
         buckets: mainBuckets,
         requestQueue: requestQueue.requestQueue,
-        lambdaTimeout: defaultLambdaTimeout
+        lambdaTimeout: defaultLambdaTimeout,
+        dynamoMetricsTable: dynamoMetricsTable?.dynamoTable
       })
       this.lambdaMap.set(Features.HASH_TAG, hashFunction.hashTagFunction.functionArn)
       featureLambdas.push(hashFunction.hashTagFunction)
@@ -69,7 +84,8 @@ export class PhotoArchiveStack extends Stack {
       const photoMetaTaggerFunction = new PhotoMetaTagFunction(this, "pa-photo-meta-tag-function-id", {
         buckets: mainBuckets,
         requestQueue: requestQueue.requestQueue,
-        lambdaTimeout: defaultLambdaTimeout
+        lambdaTimeout: defaultLambdaTimeout,
+        dynamoMetricsTable: dynamoMetricsTable?.dynamoTable
       })
       this.lambdaMap.set(Features.PHOTO_META_TAG, photoMetaTaggerFunction.photoMetaFunction.functionArn)
       featureLambdas.push(photoMetaTaggerFunction.photoMetaFunction)
@@ -80,7 +96,8 @@ export class PhotoArchiveStack extends Stack {
       const rekogFunction = new PhotoRekogTagFunction(this, "pa-photo-rekog-tag-function-id", {
         buckets:mainBuckets,
         requestQueue: requestQueue.requestQueue,
-        lambdaTimeout: defaultLambdaTimeout
+        lambdaTimeout: defaultLambdaTimeout,
+        dynamoMetricsTable: dynamoMetricsTable?.dynamoTable
       })
       this.lambdaMap.set(Features.PHOTO_REKOG_TAG, rekogFunction.rekogFunction.functionArn)
       featureLambdas.push(rekogFunction.rekogFunction)
