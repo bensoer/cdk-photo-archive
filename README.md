@@ -35,22 +35,8 @@ This will deploy the default configuration and setup. For more details on config
 # Configuration
 cdk-photo-archive comes with a number of features and customisations to work with your AWS account, archiving setup and preferences.
 
-Within `conf/configuration.ts` contains `getConfiguration()` method which returns an `IConfiguration` object containing all of the configuration settings that can be done to setup the project. Some of the paramaters are _required_ and others are _optional_ with default values if they are not provided. The following table is a breakdown of all the settings
+Within `conf/configuration.ts` contains `getConfiguration()` method which returns an `IConfiguration` object containing all of the configuration settings that can be done to setup the project. Some of the paramaters are _required_ and others are _optional_ with default values if they are not provided. The minimum necessary settings to get the project up and running have been set within the repo. For details on all of the settings available, see the wiki page or the comments within `lib/conf/i-configuration.ts`
 
-| Setting | Type | Required? | Default Value | Description |
-| ------- | ---- | -------- | ------------- | ----------- |
-| `feautures` | `Array<Features>` | YES | N/A | Specify which feature lambdas to deploy |
-| `deploymentRegion` | `Regions` | YES | N/A | Specify which AWS Region to deploy to |
-| `useExistingBuckets` | `Array<string>` | NO | undefined | Specify existing buckets to use with cdk-photo-archive instead of creating them|
-| `bucketNamePrefix` | `string` | NO | pt | Specify a prefix to append to the buckets created by the cdk-photo-archive. **Note:** This functionality is only valid if `useExistingBuckets` is `undefined` |
-| `appendRegionToBucketName` | `boolean` | NO | true | Set whether to append the deployment region (ex: us-east-1) to the bucket names. **Note:** This functionality is only valid if `useExistingBuckets` is `undefined`|
-| `switchToInfrequentAccessTierAfterDays` | `number` | NO | 90 | How many days until a file is moved to Infrequent Access Tier |
-| `switchToGlacierAccessTierAfterDays` | `number` | NO | 120 | How many days until a file is moved to Glacier Access Tier |
-| `photoArchiveStackName` | `string` | NO | photo-archive-stack | CloudFormation stack name for the photo archive stack |
-| `photoArchiveSettingsStackName` | `string` | NO | photo-archive-settings-stack | CloudFormation stack name for the phot archive settings stack|
-| `photoArchiveBucketStackName` | `string` | NO | photo-archive-bucket-stack | CloudFormation stack name for the photo archive bucket stack name |
-
-You can also view a breakdown of what each and every setting does within `lib/conf/i-configuration.ts`
 
 ## Setting Feature Lambdas
 Feature lambdas are lambdas that execute a certain task every time a photo is uploaded to the archive bucket. To use these lambdas, they must be listed in the `features` setting in the `conf/configuration.ts` file. Each feature lambda is mapped to a value in the `Features` enum. Each feature lambda is as follows:
@@ -131,18 +117,3 @@ cdk-photo-archive also deploys a number of settings to SSM Parameter Settings on
 - Custom Resources - Retrieve Data Back in the CDK: https://baihuqian.github.io/2020-12-17-lambda-based-cdk-custom-resource-with-input-and-output/
     - CustomResource for bucket handling ?
     - CustomResource for dynamodb handling ?
-
-## Welcome to your CDK TypeScript project!
-
-This is a blank project for TypeScript development with CDK.
-
-The `cdk.json` file tells the CDK Toolkit how to execute your app.
-
-### Useful commands
-
- * `npm run build`   compile typescript to js
- * `npm run watch`   watch for changes and compile
- * `npm run test`    perform the jest unit tests
- * `cdk deploy`      deploy this stack to your default AWS account/region
- * `cdk diff`        compare deployed stack with current state
- * `cdk synth`       emits the synthesized CloudFormation template
