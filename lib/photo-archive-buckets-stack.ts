@@ -32,13 +32,16 @@ export class PhotoArchiveBucketsStack extends Stack {
         bucketsToImport: configuration.useExistingBuckets,
         
         // transition settings
-        defaultInfrequentAccessTransitionDuration: Duration.days(90),
-        defaultGlacierAccessTransitionDuration: Duration.days(120),
+        switchToInfrequentAccessTierAfterDays: configuration.switchToInfrequentAccessTierAfterDays ?? 90,
+        switchToGlacierAccessTierAfterDays: configuration.switchToGlacierAccessTierAfterDays ?? 120,
 
-        switchToInfrequentAccessTierAfterDays: configuration.switchToInfrequentAccessTierAfterDays,
-        switchToGlacierAccessTierAfterDays: configuration.switchToGlacierAccessTierAfterDays,
+        appendRegionToBucketName: configuration.appendRegionToBucketName ?? true,
 
-        appendRegionToBucketName: configuration.appendRegionToBucketName ?? true
+        applyInventoryToMainBuckets: configuration.enableInventoryOfArchiveBuckets ?? true,
+        applyLoggingToMainBuckets: configuration.enableLoggingOfArchiveBuckets ?? true,
+        applyTransitionsToMainBuckets: configuration.applyTransitionsToMainBuckets ?? true
+
+        
     })
       
     this.mainBuckets = photoArchiveBuckets.mainBuckets

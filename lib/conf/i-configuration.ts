@@ -76,10 +76,35 @@ export interface IConfiguration {
     deploymentRegion: Regions
 
     /**
-     * Enalbe/Disable the dynamo metrics table. This is a table that will store verbose detailed information about each
+     * Enable/Disable the dynamo metrics table. This is a table that will store verbose detailed information about each
      * photo processed by each of the feature methods. Additional information that is not tagged, will be stored and
      * can be queries from here. Leave undefined for default value. Default value is FALSE
      */
     enableDynamoMetricsTable?: boolean
+
+    /**
+     * Enable/Disable S3 Bucket Logging on the Archive Buckets. This includes both created and imported buckets. This will 
+     * create a logging bucket which will have all actions done on the archive buckets logged to it. Leave undefined for 
+     * default value. Default value is TRUE
+     */
+    enableLoggingOfArchiveBuckets?: boolean
+
+    /**
+     * Enable/Disable S3 Bucket Inventories on the Archive Buckets. This includes both created and imported buckets. This will create
+     * a logging bucket which will have weekly inventories of all archive buckets stored in it. Leave undefined for
+     * default value. Default value is TRUE
+     */
+    enableInventoryOfArchiveBuckets?: boolean
+
+    /**
+     * Enable Transition settings to the S3 Main Buckets. Set this value to false if you would like to apply your own transitions to your
+     * own buckets. This may be useful if you are importing existing buckets and do not want their transition settings to be overridden.
+     * 
+     * NOTE: IF set to False, switchToInfrequentAccessTierAfterDays and switchToGlacierAccessTierAfterDays will have no point. They can still
+     * be set, but their value will not be applied to any buckets as transitions will not be applied.
+     * 
+     * Leave undefined for default value. Default value is TRUE
+     */
+    applyTransitionsToMainBuckets?: boolean
 
 }

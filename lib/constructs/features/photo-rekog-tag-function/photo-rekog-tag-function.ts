@@ -94,6 +94,11 @@ export class PhotoRekogTagFunction extends Construct{
           
         })
 
+        let rekogMinConfidence = "75.0"
+        if(props.dynamoMetricsQueue?.queueUrl != undefined){
+          rekogMinConfidence = "55.0"
+        }
+
         this.rekogFunction = new lambda.Function(this, `${Features.PHOTO_REKOG_TAG}-function-id`, {
           functionName: `${Features.PHOTO_REKOG_TAG}-function`,
           description: 'Photo Rekognition Tag Function. Tagging S3 Photos with Contents Labels Using AWS Rekognition',
@@ -104,10 +109,10 @@ export class PhotoRekogTagFunction extends Construct{
           timeout: props.lambdaTimeout,
           role: rekogFunctionRole,
           environment:{
-            FEATURE_NAME: Features.PHOTO_META_TAG,
+            FEATURE_NAME: Features.PHOTO_REKOG_TAG,
             REQUEST_QUEUE_URL: props.requestQueue.queueUrl,
             REQUEST_QUEUE_ARN: props.requestQueue.queueArn,
-            REKOG_MIN_CONFIDENCE: "75.0",
+            REKOG_MIN_CONFIDENCE: rekogMinConfidence,
             REKOG_MAX_LABELS: "10",
             DYNAMODB_METRICS_QUEUE_URL: props.dynamoMetricsQueue?.queueUrl ?? "Invalid"
           }

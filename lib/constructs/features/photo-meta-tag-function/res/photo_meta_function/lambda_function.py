@@ -32,6 +32,7 @@ PHOTO_FILE_TYPES = ["jpg", "jpeg", "png", "dng"]
 FEATURE_NAME = environ.get("FEATURE_NAME")
 REQUEST_QUEUE_URL = environ.get("REQUEST_QUEUE_URL")
 REQUEST_QUEUE_ARN = environ.get("REQUEST_QUEUE_ARN")
+DYNAMODB_METRICS_QUEUE_URL = environ.get("DYNAMODB_METRICS_QUEUE_URL", "Invalid")
 
 def convert_exif_shutter_speed(exif_shutter_speed_value:str) -> str:
     top_number = int(exif_shutter_speed_value.split("/")[0])
@@ -57,6 +58,7 @@ def convert_exif_aperture_speed(exif_aperture_value:str) -> str:
 def lambda_handler(event, context):
     
     bucket = event["bucketName"]
+    bucketArn = event["bucketArn"]
     key = event["key"]
     key_file_format = (key.split(".")[len(key.split("."))-1]).strip()
 
@@ -141,6 +143,22 @@ def lambda_handler(event, context):
         sqs.send_message(
             QueueUrl=REQUEST_QUEUE_URL,
             MessageBody=json.dumps(event)
+        )
+
+    if DYNAMODB_METRICS_QUEUE_URL != "Invalid":
+        print("DynamoDB Metrics Enabled. Creating Entry")
+
+        dynamo_event = {
+            "bucket": bucket,
+            "key": key,
+            "bucketArn": bucketArn,
+            "featureName": FEATURE_NAME,
+            "featureData": { key:value for key, value in exif.items() }
+        }
+
+        sqs.send_message(
+            QueueUrl=DYNAMODB_METRICS_QUEUE_URL,
+            MessageBody=json.dumps(dynamo_event)
         )
         
     

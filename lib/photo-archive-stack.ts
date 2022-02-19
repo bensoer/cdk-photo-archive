@@ -34,6 +34,8 @@ export class PhotoArchiveStack extends Stack {
     const configuration: IConfiguration = props.configuration.getConfiguration()
     const mainBuckets = props.mainBuckets
 
+    const defaultLambdaTimeout = Duration.minutes(15)
+
     // =========================
     // DYNAMO DB
     // =========================
@@ -42,7 +44,7 @@ export class PhotoArchiveStack extends Stack {
     const enableDynamoMetricsTable = configuration.enableDynamoMetricsTable ?? false
     if(enableDynamoMetricsTable){
       dynamoMetricsTable = new DynamoMetricsTable(this, "pa-dynamo-metrics-table-id", {
-
+        lambdaTimeout: defaultLambdaTimeout
       })
     }
         
@@ -50,7 +52,6 @@ export class PhotoArchiveStack extends Stack {
     // LAMBDAS + QUEUES
     // ==========================
 
-    const defaultLambdaTimeout = Duration.minutes(15)
     const featureLambdas = new Array<lambda.Function>()
 
     // Bucket -> EventQueue
@@ -72,8 +73,7 @@ export class PhotoArchiveStack extends Stack {
       const hashFunction = new HashTagFunction(this, "pa-hash-tag-function-id", {
         buckets: mainBuckets,
         requestQueue: requestQueue.requestQueue,
-        lambdaTimeout: defaultLambdaTimeout,
-        dynamoMetricsTable: dynamoMetricsTable?.dynamoTable
+        lambdaTimeout: defaultLambdaTimeout
       })
       this.lambdaMap.set(Features.HASH_TAG, hashFunction.hashTagFunction.functionArn)
       featureLambdas.push(hashFunction.hashTagFunction)
@@ -84,8 +84,7 @@ export class PhotoArchiveStack extends Stack {
       const photoMetaTaggerFunction = new PhotoMetaTagFunction(this, "pa-photo-meta-tag-function-id", {
         buckets: mainBuckets,
         requestQueue: requestQueue.requestQueue,
-        lambdaTimeout: defaultLambdaTimeout,
-        dynamoMetricsTable: dynamoMetricsTable?.dynamoTable
+        lambdaTimeout: defaultLambdaTimeout
       })
       this.lambdaMap.set(Features.PHOTO_META_TAG, photoMetaTaggerFunction.photoMetaFunction.functionArn)
       featureLambdas.push(photoMetaTaggerFunction.photoMetaFunction)
@@ -96,8 +95,7 @@ export class PhotoArchiveStack extends Stack {
       const rekogFunction = new PhotoRekogTagFunction(this, "pa-photo-rekog-tag-function-id", {
         buckets:mainBuckets,
         requestQueue: requestQueue.requestQueue,
-        lambdaTimeout: defaultLambdaTimeout,
-        dynamoMetricsTable: dynamoMetricsTable?.dynamoTable
+        lambdaTimeout: defaultLambdaTimeout
       })
       this.lambdaMap.set(Features.PHOTO_REKOG_TAG, rekogFunction.rekogFunction.functionArn)
       featureLambdas.push(rekogFunction.rekogFunction)

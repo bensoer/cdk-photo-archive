@@ -10,6 +10,7 @@ sqs = boto3.client('sqs')
 FEATURE_NAME = environ.get("FEATURE_NAME")
 REQUEST_QUEUE_URL = environ.get("REQUEST_QUEUE_URL")
 REQUEST_QUEUE_ARN = environ.get("REQUEST_QUEUE_ARN")
+DYNAMODB_METRICS_QUEUE_URL = environ.get("DYNAMODB_METRICS_QUEUE_URL", "Invalid")
 
 def lambda_handler(event, context):
 
@@ -17,6 +18,7 @@ def lambda_handler(event, context):
     print(event)
 
     bucket = event["bucketName"]
+    bucketArn = event["bucketArn"]
     key = event["key"]
     print("Processing Tagging For File: {} in Bucket: {}".format(key, bucket))
     
@@ -95,5 +97,21 @@ def lambda_handler(event, context):
             QueueUrl=REQUEST_QUEUE_URL,
             MessageBody=json.dumps(event)
         )
+
+    if DYNAMODB_METRICS_QUEUE_URL != "Invalid":
+        print("DynamoDB Metrics Enabled. Creating Entry")
+
+        dynamo_event = {
+            "bucket": bucket,
+            "key": key,
+            "bucketArn": bucketArn,
+            "featureName": FEATURE_NAME,
+            "featureData": { x["Key"]:x["Value"] for x in tagset }
+        }
+
+        sqs.send_message(
+            QueueUrl=DYNAMODB_METRICS_QUEUE_URL,
+            MessageBody=json.dumps(dynamo_event)
+        )
     
-    print("Feature Processing Complete. Terminating")
+    print("Processing Complete. Terminating")
