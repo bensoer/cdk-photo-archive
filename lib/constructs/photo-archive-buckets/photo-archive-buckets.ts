@@ -56,7 +56,9 @@ export class PhotoArchiveBuckets extends Construct {
                         's3:PutBucketLogging',
                         's3:PutInventoryConfiguration',
                         's3:PutBucketOwnershipControls',
-                        's3:PutBucketPublicAccessBlock'
+                        's3:PutBucketPublicAccessBlock',
+                        's3:PutBucketPolicy',
+                        's3:GetBucketPolicy'
                     ],
                     resources: bucketArns
                 })

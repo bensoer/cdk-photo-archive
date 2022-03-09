@@ -1,6 +1,7 @@
 import logging
 import boto3
 import botocore
+import json
 
 
 '''
@@ -17,7 +18,6 @@ import botocore
             applyTransitionsToMainBuckets: boolean,
             applyLoggingToMainBuckets: boolean,
             applyInventoryToMainBuckets: boolean,
-
         }
     }
     
@@ -29,6 +29,7 @@ aws_account_id = ""
 
 def on_event(event, context):
     print(event)
+    global aws_account_id
     aws_account_id = context.invoked_function_arn.split(":")[4]
     request_type = event['RequestType']
     if request_type == 'Create': return on_create(event)
@@ -108,7 +109,81 @@ def delete_lifecycle(bucket_name:str):
         Bucket=bucket_name
     )
 
+def setup_logging_bucket_policy(bucket_name:str, logging_bucket_name:str):
+    global aws_account_id
+
+    existing_policy_statements = list()
+    try:
+        existing_policy_response = s3_client.get_bucket_policy(
+            Bucket=logging_bucket_name
+        )
+        existing_policy = json.loads(existing_policy_response['Policy'])
+        if "Statement" in existing_policy:
+            existing_policy_statements.extend(existing_policy["Statement"])
+    except:
+        # policy does not exist
+        pass
+
+    new_logging_statement = {
+        "Sid": "{}-AccessLogs2LoggingBucket-AccessPolicy".format(bucket_name),
+        "Effect": "Allow",
+        "Principal": {
+            "Service": "logging.s3.amazonaws.com"
+        },
+        "Action": [
+            "s3:PutObject"
+        ],
+        "Resource": "arn:aws:s3:::{}/*".format(logging_bucket_name),
+        "Condition": {
+            "ArnLike": {
+                "aws:SourceArn": "arn:aws:s3:::{}".format(bucket_name)
+            },
+            "StringEquals": {
+                "aws:SourceAccount": aws_account_id
+            }
+        }
+    }
+
+    new_inventory_statement = {
+        "Sid": "{}-InventoryAndAnalytics2LoggingBucket-AccessPolicy".format(bucket_name),
+        "Effect": "Allow",
+        "Principal": {
+            "Service": "s3.amazonaws.com"
+        },
+        "Action": "s3:PutObject",
+        "Resource": [
+            "arn:aws:s3:::{}/*".format(logging_bucket_name)
+        ],
+        "Condition": {
+            "ArnLike": {
+                "aws:SourceArn": "arn:aws:s3:::{}".format(bucket_name)
+            },
+            "StringEquals": {
+                "aws:SourceAccount": aws_account_id,
+                # "s3:x-amz-acl": "bucket-owner-full-control"
+            }
+        }
+    }
+
+    if new_logging_statement not in existing_policy_statements:
+        existing_policy_statements.append(new_logging_statement)
+    if new_inventory_statement not in existing_policy_statements:
+        existing_policy_statements.append(new_inventory_statement)
+
+
+    updated_policy = {
+        "Version": "2012-10-17",
+        "Statement": existing_policy_statements
+    }
+
+    s3_client.put_bucket_policy(
+        Bucket=logging_bucket_name,
+        ConfirmRemoveSelfBucketAccess=True,
+        Policy=json.dumps(updated_policy)
+    )
+
 def setup_logging(bucket_name, logging_bucket_name):
+
     s3_client.put_bucket_logging(
         Bucket=bucket_name,
         BucketLoggingStatus={
@@ -126,11 +201,12 @@ def delete_logging(bucket_name):
     )
 
 def setup_inventory(bucket_name, logging_bucket_name):
+    global aws_account_id
 
     s3_client.put_bucket_inventory_configuration(
         Bucket=bucket_name,
         Id="{}-inventory-configuration".format(bucket_name),
-        InventoryConfiguration = {
+        InventoryConfiguration={
             'Id': "{}-inventory-configuration".format(bucket_name),
             'Destination': {
                 'S3BucketDestination' : {
@@ -221,6 +297,9 @@ def setup_logging_bucket(logging_bucket_name:str, main_bucket_names:list, config
         logging_bucket_arn = create_bucket(logging_bucket_name)
         if main_bucket_names is not None and len(main_bucket_names) > 0:
             for main_bucket_name in main_bucket_names:
+
+                if config["applyLoggingToMainBuckets"] or config["applyInventoryToMainBuckets"]:
+                    setup_logging_bucket_policy(main_bucket_name, logging_bucket_name)
                 if config["applyLoggingToMainBuckets"]:
                     setup_logging(main_bucket_name, logging_bucket_name)
                 if config["applyInventoryToMainBuckets"]:

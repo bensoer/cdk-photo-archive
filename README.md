@@ -67,3 +67,4 @@ Feature lambdas are lambdas that execute a certain task every time a photo is up
 - Custom Resources - Retrieve Data Back in the CDK: https://baihuqian.github.io/2020-12-17-lambda-based-cdk-custom-resource-with-input-and-output/
     - CustomResource for bucket handling ?
     - CustomResource for dynamodb handling ?
+- Merge common python library code into a Lambda Layer library so it can be shared and reduce repeated code
