@@ -68,6 +68,8 @@ Feature lambdas are lambdas that execute a certain task every time a photo is up
     - CustomResource for bucket handling ?
     - CustomResource for dynamodb handling ?
 - Merge common python library code into a Lambda Layer library so it can be shared and reduce repeated code
+- Setup Lambda versions - implement blue/green deployments with CDK updates
 - Use StepFunctions for Feature Lambdas ?
 - Merge everything into Nested Stacks of 1 master stack
 - Don't use exports. Use SSM Parameter Store
+- Create a ConfigurationFactory class which fetches all configurations and resolves defaults etc

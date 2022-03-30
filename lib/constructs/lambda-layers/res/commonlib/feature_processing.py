@@ -1,6 +1,7 @@
 
 
 import json
+import copy
 
 class FeatureProcessing:
 
@@ -13,7 +14,7 @@ class FeatureProcessing:
 
     def generate_updated_request_queue_object(self, feature_name:str) -> FeatureProcessing:
         current_number_features_completed = self.request_queue_object["numberOfFeaturesCompleted"] + 1
-        local_copy = self.request_queue_object.copy()
+        local_copy = copy.deepcopy(self.request_queue_object)
 
         for index, feature in enumerate(local_copy["features"]):
             if feature["name"] == feature_name:
