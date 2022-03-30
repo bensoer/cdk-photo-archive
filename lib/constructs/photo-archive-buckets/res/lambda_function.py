@@ -109,6 +109,7 @@ def delete_lifecycle(bucket_name:str):
         Bucket=bucket_name
     )
 
+# https://docs.aws.amazon.com/AmazonS3/latest/userguide/example-bucket-policies.html#example-bucket-policies-use-case-9
 def setup_logging_bucket_policy(bucket_name:str, logging_bucket_name:str):
     global aws_account_id
 
@@ -211,7 +212,7 @@ def setup_inventory(bucket_name, logging_bucket_name):
             'Destination': {
                 'S3BucketDestination' : {
                     'AccountId': aws_account_id,
-                    'Bucket': logging_bucket_name,
+                    'Bucket': 'arn:aws:s3:::' + logging_bucket_name,
                     'Format': 'CSV',
                     'Prefix': "{}-inventory".format(bucket_name),
                     'Encryption': {
@@ -223,9 +224,6 @@ def setup_inventory(bucket_name, logging_bucket_name):
             'IncludedObjectVersions': 'Current',
             'Schedule': {
                 'Frequency': 'Weekly'
-            },
-            'Filter': {
-                'Prefix': ''
             },
             'OptionalFields': [
                 'Size',
