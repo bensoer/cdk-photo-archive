@@ -17,6 +17,9 @@ export interface LambdaLayersProps {
 export class LambdaLayers extends Construct {
 
     public readonly layerArns: Array<string> = new Array<string>()
+    public readonly layers: Array<lambda.LayerVersion> = new Array<lambda.LayerVersion>()
+
+    private readonly layerMap: Map<LayerTypes, lambda.LayerVersion> = new Map<LayerTypes, lambda.LayerVersion>()
 
     constructor(scope:Construct, id:string, props: LambdaLayersProps){
         super(scope, id)
@@ -31,6 +34,8 @@ export class LambdaLayers extends Construct {
                 description: "exifread library lambda layer"
             })
             this.layerArns.push(exifReadLayer.layerVersionArn)
+            this.layers.push(exifReadLayer)
+            this.layerMap.set(LayerTypes.EXIFREADLAYER, exifReadLayer)
         }
         
         if(props.createLayers.includes(LayerTypes.COMMONLIBLAYER)){
@@ -43,6 +48,14 @@ export class LambdaLayers extends Construct {
                 description: "commonlib lambda layer"
             })
             this.layerArns.push(commonLibLayer.layerVersionArn)
+            this.layers.push(commonLibLayer)
+            this.layerMap.set(LayerTypes.COMMONLIBLAYER, commonLibLayer)
         }
     }
+
+    public getLayerOfType(layerType: LayerTypes): lambda.LayerVersion | undefined{
+        return this.layerMap.get(layerType)
+    }
+
+
 }

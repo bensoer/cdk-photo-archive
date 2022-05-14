@@ -2,6 +2,7 @@
 
 import json
 import copy
+import typing
 
 class FeatureProcessing:
 
@@ -12,7 +13,7 @@ class FeatureProcessing:
         current_number_features_completed = self.request_queue_object["numberOfFeaturesCompleted"] + 1
         return current_number_features_completed < len(self.request_queue_object["features"])
 
-    def generate_updated_request_queue_object(self, feature_name:str) -> FeatureProcessing:
+    def generate_updated_request_queue_object(self, feature_name:str):
         current_number_features_completed = self.request_queue_object["numberOfFeaturesCompleted"] + 1
         local_copy = copy.deepcopy(self.request_queue_object)
 

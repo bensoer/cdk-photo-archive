@@ -4,6 +4,7 @@ import {
   aws_lambda as lambda,
   aws_s3 as s3,
   aws_dynamodb as dynamodb,
+  aws_sns as sns,
 } from 'aws-cdk-lib';
 import { EventQueue } from './constructs/queues/event-queue/event-queue';
 import { DispatcherFunction } from './constructs/dispatcher-function/dispatcher-function';
@@ -11,13 +12,14 @@ import { RequestBuilderFunction } from './constructs/request-builder-function/re
 import { RequestQueue } from './constructs/queues/request-queue/request-queue';
 import { HashTagFunction } from './constructs/features/hash-tag-function/hash-tag-function';
 import { PhotoMetaTagFunction } from './constructs/features/photo-meta-tag-function/photo-meta-tag-function';
-import { BucketQueueEventLinker } from './constructs/bucket-queue-event-linker/bucket-queue-event-linker';
+import { BucketTopicEventLinker } from './constructs/bucket-topic-event-linker/bucket-topic-event-linker';
 import { IConfiguration } from './conf/i-configuration';
 import { Configuration } from '../conf/configuration';
 import { Features } from './enums/features';
 import { PhotoRekogTagFunction } from './constructs/features/photo-rekog-tag-function/photo-rekog-tag-function';
 import { HashUtil } from './utils/hashutil';
 import { DynamoMetricsTable } from './constructs/dynamo-metrics-table/dynamo-metrics-table';
+import { LambdaLayers, LayerTypes } from './constructs/lambda-layers/lambda-layers';
 
 export interface PhotoArchiveStackProps extends StackProps {
   configuration: Configuration
@@ -58,6 +60,7 @@ export class PhotoArchiveStack extends Stack {
     const eventQueue = new EventQueue(this, "pa-event-queue-id", {
       buckets: mainBuckets,
       eventQueueName: "pt-pa-event-queue",
+      eventTopicName: "pt-pa-topic",
       lambdaTimeout: defaultLambdaTimeout
     })
 
@@ -68,12 +71,28 @@ export class PhotoArchiveStack extends Stack {
       requestQueueName: "pt-pa-request-queue"
     })
 
+    const lambdaLayerHandler = new LambdaLayers(this, 'pa-lambda-layers-id', {
+      createLayers: [ LayerTypes.COMMONLIBLAYER, LayerTypes.EXIFREADLAYER ]
+    })
+
+    const layerFinder = (layerTypes: Array<LayerTypes>) => {
+      const layers = new Array<lambda.LayerVersion>()
+      for(const layerType of layerTypes){
+        const lambdaLayer = lambdaLayerHandler.getLayerOfType(layerType)
+        if(lambdaLayer != undefined){
+          layers.push(lambdaLayer)
+        }
+      }
+      return layers
+    }
+
     // DispatchLambda -> HashingFunction (FeatureLambda)
     if(configuration.features.includes(Features.HASH_TAG)){
       const hashFunction = new HashTagFunction(this, "pa-hash-tag-function-id", {
         buckets: mainBuckets,
         requestQueue: requestQueue.requestQueue,
-        lambdaTimeout: defaultLambdaTimeout
+        lambdaTimeout: defaultLambdaTimeout,
+        onLayerRequestListener: layerFinder
       })
       this.lambdaMap.set(Features.HASH_TAG, hashFunction.hashTagFunction.functionArn)
       featureLambdas.push(hashFunction.hashTagFunction)
@@ -84,7 +103,8 @@ export class PhotoArchiveStack extends Stack {
       const photoMetaTaggerFunction = new PhotoMetaTagFunction(this, "pa-photo-meta-tag-function-id", {
         buckets: mainBuckets,
         requestQueue: requestQueue.requestQueue,
-        lambdaTimeout: defaultLambdaTimeout
+        lambdaTimeout: defaultLambdaTimeout,
+        onLayerRequestListener: layerFinder
       })
       this.lambdaMap.set(Features.PHOTO_META_TAG, photoMetaTaggerFunction.photoMetaFunction.functionArn)
       featureLambdas.push(photoMetaTaggerFunction.photoMetaFunction)
@@ -95,7 +115,8 @@ export class PhotoArchiveStack extends Stack {
       const rekogFunction = new PhotoRekogTagFunction(this, "pa-photo-rekog-tag-function-id", {
         buckets:mainBuckets,
         requestQueue: requestQueue.requestQueue,
-        lambdaTimeout: defaultLambdaTimeout
+        lambdaTimeout: defaultLambdaTimeout,
+        onLayerRequestListener: layerFinder
       })
       this.lambdaMap.set(Features.PHOTO_REKOG_TAG, rekogFunction.rekogFunction.functionArn)
       featureLambdas.push(rekogFunction.rekogFunction)
@@ -120,11 +141,13 @@ export class PhotoArchiveStack extends Stack {
     // ==========================
 
     for(const mainBucket of mainBuckets){
-      const hash = HashUtil.generateIDSafeHash(mainBucket.bucketArn + mainBucket.bucketName + eventQueue.eventQueue.queueArn, 15)
-      const bucketQueueEventLinker = new BucketQueueEventLinker(this, `pa-bucket-queue-event-linker-${hash}-id`, {
+
+      const hash = HashUtil.generateIDSafeHash(mainBucket.bucketArn + mainBucket.bucketName + eventQueue.eventTopic.topicArn, 15)
+      const bucketTopicEventLinker = new BucketTopicEventLinker(this, `pa-bucket-queue-event-linker-${hash}-id`, {
         bucket: mainBucket,
-        queue: eventQueue.eventQueue
+        topic: eventQueue.eventTopic
       })
+      bucketTopicEventLinker.node.addDependency(eventQueue)
     }
 
   }

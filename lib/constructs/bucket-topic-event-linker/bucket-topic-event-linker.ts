@@ -7,6 +7,7 @@ import {
     custom_resources as cr,
     aws_s3 as s3,
     aws_sqs as sqs,
+    aws_sns as sns,
     hashMapper
 } from "aws-cdk-lib"
 import {
@@ -17,20 +18,21 @@ import * as path from 'path'
 import * as crypto from 'crypto'
 import { ServicePrincipals } from "cdk-constants";
 import { HashUtil } from "../../utils/hashutil";
+import { Sns } from "aws-cdk-lib/aws-ses-actions";
 
 
 
-export interface BucketQueueEventLinkerProps {
+export interface BucketTopicEventLinkerProps {
     bucket: s3.IBucket
-    queue: sqs.Queue
+    topic: sns.Topic
 }
 
-export class BucketQueueEventLinker extends Construct{
+export class BucketTopicEventLinker extends Construct{
 
-    constructor(scope: Construct, id: string, props: BucketQueueEventLinkerProps){
+    constructor(scope: Construct, id: string, props: BucketTopicEventLinkerProps){
         super(scope, id)
 
-        const hashCode = HashUtil.generateIDSafeHash(props.bucket.bucketArn + props.bucket.bucketName + props.queue.queueArn, 15)
+        const hashCode = HashUtil.generateIDSafeHash(props.bucket.bucketArn + props.bucket.bucketName + props.topic.topicArn, 15)
 
         const eventLinkingLambdaRole = new iam.Role(this, `bqel-function-service-role-${hashCode}-id`, {
             roleName: `bqel-lambda-service-role-${hashCode}`,
@@ -57,8 +59,8 @@ export class BucketQueueEventLinker extends Construct{
       
         const eventLinkingLambda = new lambda.Function(this, `bqel-function-${hashCode}-id`,{
           functionName: `bqel-function-${hashCode}`,
-          description: 'Event Linking For S3 Bucket Events To SQS',
-          runtime: lambda.Runtime.PYTHON_3_7,
+          description: 'Event Linking For S3 Bucket Events To SNS',
+          runtime: lambda.Runtime.PYTHON_3_8,
           handler: 'lambda_function.on_event',
           code: lambda.Code.fromAsset(path.join(__dirname, './res')),
           role: eventLinkingLambdaRole,
@@ -78,12 +80,12 @@ export class BucketQueueEventLinker extends Construct{
             properties: {
                 "bucketArn": props.bucket.bucketArn,
                 "bucketName": props.bucket.bucketName,
-                "queueArn": props.queue.queueArn,
+                "snsTopicArn": props.topic.topicArn,
             }
         })
 
         eventLinkingCustomResource.node.addDependency(props.bucket)
-        eventLinkingCustomResource.node.addDependency(props.queue)
+        eventLinkingCustomResource.node.addDependency(props.topic)
         
     }
 }

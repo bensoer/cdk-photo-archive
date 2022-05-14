@@ -10,12 +10,14 @@ import {
 import * as path from 'path'
 import { ManagedPolicies, ServicePrincipals } from "cdk-constants";
 import { Features } from "../../../enums/features";
+import { LayerTypes } from "../../lambda-layers/lambda-layers";
 
 export interface PhotoMetaTagFunctionProps{
     requestQueue: sqs.Queue,
     buckets: Array<s3.IBucket>,
     lambdaTimeout: Duration,
-    dynamoMetricsQueue?: sqs.Queue
+    dynamoMetricsQueue?: sqs.Queue,
+    onLayerRequestListener: (layerTypes: Array<LayerTypes>) => Array<lambda.LayerVersion>
 }
 
 export class PhotoMetaTagFunction extends Construct{
@@ -77,22 +79,11 @@ export class PhotoMetaTagFunction extends Construct{
           
         })
 
-        const exifReadLayer = new lambda.LayerVersion(this, "pmtf-exifread-layer-id", {
-          layerVersionName: "pmtf-exifread-layer",
-          compatibleRuntimes:[
-            lambda.Runtime.PYTHON_3_8
-          ],
-          code: lambda.Code.fromAsset(path.join(__dirname, "./res/exifread/exifread_layer.zip")),
-          description: "exifread library lambda layer"
-        })
-
         this.photoMetaFunction = new lambda.Function(this, `p,tf-${Features.PHOTO_META_TAG}-function-id`, {
           functionName: `${Features.PHOTO_META_TAG}-function`,
           description: 'Photo Meta Tag Function. Tagging S3 photo resources with photo metrics.',
           runtime: lambda.Runtime.PYTHON_3_8,
-          layers:[
-            exifReadLayer
-          ],
+          layers: props.onLayerRequestListener([LayerTypes.EXIFREADLAYER]),
           memorySize: 1024,
           handler: 'lambda_function.lambda_handler',
           code: lambda.Code.fromAsset(path.join(__dirname, './res/photo_meta_function')),

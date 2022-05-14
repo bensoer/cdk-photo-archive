@@ -15,23 +15,23 @@ def on_create(event):
 
     bucketArn = props["bucketArn"]
     bucketName = props["bucketName"]
-    sqsQueueArn = props["queueArn"]
+    snsTopicArn = props["snsTopicArn"]
 
     s3_client = boto3.client('s3')
 
-    print("Linking Bucket Events To SQS")
+    print("Linking Bucket Events To SNS")
     try:
         bucket_linking_response = s3_client.put_bucket_notification_configuration(
             Bucket=bucketName,
             NotificationConfiguration={
-                "QueueConfigurations": [
+                'TopicConfigurations': [
                     {
-                        'QueueArn': sqsQueueArn,
+                        'TopicArn': snsTopicArn,
                         'Events': [
                             's3:ObjectCreated:*',
                         ]
-                    }
-                ]
+                    },
+                ],
             }
         )
         print("Linking Bucket Events To SQS Complete")
@@ -54,28 +54,29 @@ def on_update(event):
     
     bucketArn = props["bucketArn"]
     bucketName = props["bucketName"]
-    sqsQueueArn = props["queueArn"]
+    snsTopicArn = props["snsTopicArn"]
 
     oldBucketArn = oldProps["bucketArn"]
     oldBucketName = oldProps["bucketName"]
-    oldSqsQueueArn = oldProps["queueArn"]
+    oldSnsTopicArn = oldProps["snsTopicArn"]
 
     s3_client = boto3.client('s3')
 
-    print("Updating Linking Bucket Events To SQS")
+    print("Updating Linking Bucket Events To SNS")
     try:
         bucket_linking_response = s3_client.put_bucket_notification_configuration(
             Bucket=bucketName,
             NotificationConfiguration={
-                "QueueConfigurations": [
+                'TopicConfigurations': [
                     {
-                        'QueueArn': sqsQueueArn,
+                        'TopicArn': snsTopicArn,
                         'Events': [
                             's3:ObjectCreated:*',
                         ]
-                    }
+                    },
                 ]
-            }
+            },
+            
         )
         print("Updating Linking Bucket Events To SQS Complete")
         print(bucket_linking_response)
@@ -96,7 +97,7 @@ def on_delete(event):
     
     bucketArn = props["bucketArn"]
     bucketName = props["bucketName"]
-    sqsQueueArn = props["queueArn"]
+    snsTopicArn = props["snsTopicArn"]
 
     s3_client = boto3.client('s3')
 
@@ -105,7 +106,7 @@ def on_delete(event):
             Bucket=bucketName,
             NotificationConfiguration={}
         )
-        print("Updating Linking Bucket Events To SQS Complete")
+        print("Updating Linking Bucket Events To SNS Complete")
         print(bucket_linking_response)
     except botocore.exceptions.ClientError as error:
         print(error)

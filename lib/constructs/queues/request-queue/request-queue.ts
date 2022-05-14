@@ -31,7 +31,25 @@ export class RequestQueue extends Construct{
           })
 
         if(props.lambdaArns !== undefined){
-            const requestQueuePolicy = new sqs.QueuePolicy(this, "rq-policy-id",{
+            this.requestQueue.addToResourcePolicy(new iam.PolicyStatement(
+                {
+                    principals:[
+                        new iam.ServicePrincipal(ServicePrincipals.LAMBDA)
+                    ],
+                    actions:[
+                        "sqs:SendMessage",
+                    ],
+                    resources:[
+                        this.requestQueue.queueArn
+                    ],
+                    conditions:{
+                        "ArnLike": {
+                            "aws:SourceArn": props.lambdaArns
+                        }
+                    }
+                })
+            )
+            /*const requestQueuePolicy = new sqs.QueuePolicy(this, "rq-policy-id",{
                 queues: [ this.requestQueue ],
               })
           
@@ -51,8 +69,7 @@ export class RequestQueue extends Construct{
                       }
                   }
               }))
+              */
         }
-      
-        
     }
 }

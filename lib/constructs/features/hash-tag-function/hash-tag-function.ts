@@ -10,12 +10,14 @@ import { Duration } from 'aws-cdk-lib'
 import * as path from 'path'
 import { ManagedPolicies, ServicePrincipals } from "cdk-constants";
 import { Features } from "../../../enums/features";
+import { LayerTypes } from "../../lambda-layers/lambda-layers";
 
 export interface HashTagFunctionProps {
     buckets: Array<s3.IBucket>
     requestQueue: sqs.Queue
     lambdaTimeout: Duration,
-    dynamoMetricsQueue?: sqs.Queue
+    dynamoMetricsQueue?: sqs.Queue,
+    onLayerRequestListener: (layerTypes: Array<LayerTypes>) => Array<lambda.LayerVersion>
 }
 
 export class HashTagFunction extends Construct{
@@ -80,12 +82,13 @@ export class HashTagFunction extends Construct{
         this.hashTagFunction = new lambda.Function(this, `htf-${Features.HASH_TAG}-function-id`, {
           functionName: `${Features.HASH_TAG}-function`,
           description: 'Hash Tag Function. Tagging S3 resources with MD5, SHA1, SHA256 and SHA512 hashes',
-          runtime: lambda.Runtime.PYTHON_3_7,
+          runtime: lambda.Runtime.PYTHON_3_8,
           memorySize: 1024,
           handler: 'lambda_function.lambda_handler',
           code: lambda.Code.fromAsset(path.join(__dirname, './res')),
           timeout: props.lambdaTimeout,
           role: hashingFunctionRole,
+          layers: props.onLayerRequestListener([LayerTypes.COMMONLIBLAYER]),
           environment:{
             FEATURE_NAME: Features.HASH_TAG,
             REQUEST_QUEUE_URL: props.requestQueue.queueUrl,

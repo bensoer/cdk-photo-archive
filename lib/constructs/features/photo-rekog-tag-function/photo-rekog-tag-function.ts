@@ -10,12 +10,14 @@ import {
 import * as path from 'path'
 import { ManagedPolicies, ServicePrincipals } from "cdk-constants";
 import { Features } from "../../../enums/features";
+import { LayerTypes } from "../../lambda-layers/lambda-layers";
 
 export interface PhotoRekogTagFunctionProps{
     requestQueue: sqs.Queue,
     buckets: Array<s3.IBucket>,
     lambdaTimeout: Duration,
-    dynamoMetricsQueue?: sqs.Queue
+    dynamoMetricsQueue?: sqs.Queue,
+    onLayerRequestListener: (layerTypes: Array<LayerTypes>) => Array<lambda.LayerVersion>
 }
 
 export class PhotoRekogTagFunction extends Construct{
@@ -108,6 +110,7 @@ export class PhotoRekogTagFunction extends Construct{
           code: lambda.Code.fromAsset(path.join(__dirname, './res')),
           timeout: props.lambdaTimeout,
           role: rekogFunctionRole,
+          layers: props.onLayerRequestListener([LayerTypes.COMMONLIBLAYER]),
           environment:{
             FEATURE_NAME: Features.PHOTO_REKOG_TAG,
             REQUEST_QUEUE_URL: props.requestQueue.queueUrl,
