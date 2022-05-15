@@ -101,9 +101,10 @@ export class PhotoArchiveBuckets extends Construct {
         const loggingBucketArn = bucketHandlerCustomResource.getAtt('loggingBucketArn').toString()
         this.loggingBucket = s3.Bucket.fromBucketArn(this, 'LoggingBucketImport', loggingBucketArn)
 
-        /*const mainBucketArnsToken = bucketHandlerCustomResource.getAtt('bucketArns')
-        const mainBucketArns = Token.asList(mainBucketArnsToken)*/
+        //const mainBucketArnsToken = bucketHandlerCustomResource.getAtt('bucketArns')
+        //const mainBucketArns = Token.asList(mainBucketArnsToken)
 
+        //for(const mainBucketArn of mainBucketArns){
         for(const mainBucketArn of FormatUtils.convertBucketNamesToArns(bucketNames.mainBucketNames)){
             const hash = HashUtil.generateIDSafeHash(mainBucketArn, 15)
             this.mainBuckets.push(

@@ -108,7 +108,7 @@ def on_update(event):
             raise error
         except Exception as e:
             print(e)
-        raise e
+            raise e
 
     return { "Status": "SUCCESS" }
 
@@ -117,8 +117,8 @@ def on_delete(event):
     props = event["ResourceProperties"]
     print("delete resource %s" % physical_id)
     
-    bucketArns = props["bucketArn"]
-    bucketNames = props["bucketName"]
+    bucketArns = props["bucketArns"]
+    bucketNames = props["bucketNames"]
     snsTopicArn = props["snsTopicArn"]
 
     s3_client = boto3.client('s3')
