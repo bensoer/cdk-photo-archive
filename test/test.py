@@ -39,7 +39,7 @@ s3_client.put_bucket_inventory_configuration(
     )
 '''
 
-
+'''
 s3_client.put_bucket_inventory_configuration(
     Bucket=bucket_name,
     Id="{}-inventory-configuration".format(bucket_name),
@@ -77,3 +77,9 @@ s3_client.put_bucket_inventory_configuration(
         }
     }
 )
+'''
+
+response = s3_client.get_bucket_notification_configuration(
+    Bucket=bucket_name
+)
+print(response)

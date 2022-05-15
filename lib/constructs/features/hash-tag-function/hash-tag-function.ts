@@ -27,7 +27,7 @@ export class HashTagFunction extends Construct{
     constructor(scope:Construct, id:string, props: HashTagFunctionProps){
         super(scope, id)
 
-        const hashingFunctionRole = new iam.Role(this, "htf-service-role-id", {
+        const hashingFunctionRole = new iam.Role(this, "HTFServiceRole", {
             roleName: "htf-service-role",
             description: "Service Role For Hash Tag Function",
             assumedBy: new iam.ServicePrincipal(ServicePrincipals.LAMBDA)
@@ -39,7 +39,7 @@ export class HashTagFunction extends Construct{
           )
         )
       
-        const hashingFunctionRoleSQSPolicy = new iam.Policy(this, "htf-service-role-sqs-policy-id", {
+        const hashingFunctionRoleSQSPolicy = new iam.Policy(this, "HTFServiceRoleSQSPolicy", {
           policyName: "htf-service-role-sqs-policy",
           roles: [
             hashingFunctionRole
@@ -61,7 +61,7 @@ export class HashTagFunction extends Construct{
         const bucketArns = props.buckets.map((bucket) => bucket.bucketArn)
         const bucketArnsSub = bucketArns.map((bucketArn) => bucketArn + "/*")
         const mergedBucketArns = bucketArns.concat(bucketArnsSub)
-        const hashingFunctionRoleS3Policy = new iam.Policy(this, "htf-service-role-s3-policy-id", {
+        const hashingFunctionRoleS3Policy = new iam.Policy(this, "HTFServiceRoleS3Policy", {
           policyName: "htf-service-role-s3-policy",
           roles:[
             hashingFunctionRole
@@ -79,7 +79,7 @@ export class HashTagFunction extends Construct{
           
         })
 
-        this.hashTagFunction = new lambda.Function(this, `htf-${Features.HASH_TAG}-function-id`, {
+        this.hashTagFunction = new lambda.Function(this, `HTFFunction`, {
           functionName: `${Features.HASH_TAG}-function`,
           description: 'Hash Tag Function. Tagging S3 resources with MD5, SHA1, SHA256 and SHA512 hashes',
           runtime: lambda.Runtime.PYTHON_3_8,

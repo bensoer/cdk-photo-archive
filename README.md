@@ -67,9 +67,9 @@ Feature lambdas are lambdas that execute a certain task every time a photo is up
 - Custom Resources - Retrieve Data Back in the CDK: https://baihuqian.github.io/2020-12-17-lambda-based-cdk-custom-resource-with-input-and-output/
     - CustomResource for bucket handling ?
     - CustomResource for dynamodb handling ?
-- Merge common python library code into a Lambda Layer library so it can be shared and reduce repeated code
+- ~~Merge common python library code into a Lambda Layer library so it can be shared and reduce repeated code~~
 - Setup Lambda versions - implement blue/green deployments with CDK updates
 - Use StepFunctions for Feature Lambdas ?
 - Merge everything into Nested Stacks of 1 master stack
 - Don't use exports. Use SSM Parameter Store
-- Create a ConfigurationFactory class which fetches all configurations and resolves defaults etc
+- ~~Create a ConfigurationFactory class which fetches all configurations and resolves defaults etc~~

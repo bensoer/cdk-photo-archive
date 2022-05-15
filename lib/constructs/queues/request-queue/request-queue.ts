@@ -24,7 +24,7 @@ export class RequestQueue extends Construct{
         const lambdaTimeoutMinutes = props.dispatcherLambdaTimeout.toMinutes()
         const visibilityTimeout = lambdaTimeoutMinutes * 6
 
-        this.requestQueue = new sqs.Queue(this, `rq-${props.requestQueueName}-id`, {
+        this.requestQueue = new sqs.Queue(this, `RequestQueue`, {
             queueName: props.requestQueueName,
             encryption: sqs.QueueEncryption.UNENCRYPTED,
             visibilityTimeout: Duration.minutes(visibilityTimeout)

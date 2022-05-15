@@ -25,7 +25,7 @@ export class LambdaLayers extends Construct {
         super(scope, id)
 
         if(props.createLayers.includes(LayerTypes.EXIFREADLAYER)){
-            const exifReadLayer = new lambda.LayerVersion(this, "ll-exifread-layer-id", {
+            const exifReadLayer = new lambda.LayerVersion(this, "ExifReadLayer", {
                 layerVersionName: "ll-exifread-layer",
                 compatibleRuntimes:[
                     lambda.Runtime.PYTHON_3_8
@@ -39,7 +39,7 @@ export class LambdaLayers extends Construct {
         }
         
         if(props.createLayers.includes(LayerTypes.COMMONLIBLAYER)){
-            const commonLibLayer = new lambda.LayerVersion(this, "ll-commonlib-layer-id", {
+            const commonLibLayer = new lambda.LayerVersion(this, "CommonLibLayer", {
                 layerVersionName: "ll-commonlib-layer",
                 compatibleRuntimes:[
                     lambda.Runtime.PYTHON_3_8

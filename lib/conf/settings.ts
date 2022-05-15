@@ -2,7 +2,7 @@ import { Features } from "../enums/features";
 import { Regions } from "../enums/regions";
 
 
-export interface IConfiguration {
+export interface ISettings extends Record<string, any> {
 
 
     /**

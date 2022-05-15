@@ -23,8 +23,8 @@ export class DispatcherFunction extends Construct{
     constructor(scope: Construct, id:string, props: DispatcherFunctionProps){
         super(scope, id)
 
-        const dispatcherFunctionRole = new iam.Role(this, "df-service-role-id", {
-            roleName: "df-service-role",
+        const dispatcherFunctionRole = new iam.Role(this, "DispatcherServiceRole", {
+            roleName: "dispatcher-service-role",
             description: "Service Role For Dispatcher Function",
             assumedBy: new iam.ServicePrincipal(ServicePrincipals.LAMBDA)
           })
@@ -35,8 +35,8 @@ export class DispatcherFunction extends Construct{
             )
         )
       
-        const dispatcherFunctionRoleSQSReceivePolicy = new iam.Policy(this, "df-service-role-sqs-receive-policy-id", {
-          policyName: "df-service-role-sqs-receive-policy",
+        const dispatcherFunctionRoleSQSReceivePolicy = new iam.Policy(this, "DispatcherSQSReceivePolicy", {
+          policyName: "dispatcher-service-role-sqs-receive-policy",
           roles: [
             dispatcherFunctionRole
           ],
@@ -55,8 +55,8 @@ export class DispatcherFunction extends Construct{
         })
         //props.requestQueue.grantSendMessages(dispatcherFunctionRole)
 
-        const dispatcherFunctionRoleLambdaInvokePolicy = new iam.Policy(this, "df-service-role-lambda-invoke-policy-id", {
-            policyName: "df-service-role-lambda-invoke-policy",
+        const dispatcherFunctionRoleLambdaInvokePolicy = new iam.Policy(this, "DispatcherLambdaInvokePolicy", {
+            policyName: "dispatcher-service-role-lambda-invoke-policy",
             roles:[
                 dispatcherFunctionRole
             ],
@@ -71,7 +71,7 @@ export class DispatcherFunction extends Construct{
         })
 
 
-        this.dispatcherFunction = new lambda.Function(this, "df-id", {
+        this.dispatcherFunction = new lambda.Function(this, "DispatcherFunction", {
           functionName: 'dispatcher-function',
           description: 'Dispatcher Function. Delegates Request Queue Events To Appropriate Feature Functions',
           runtime: lambda.Runtime.PYTHON_3_8,

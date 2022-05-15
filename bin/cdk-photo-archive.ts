@@ -5,18 +5,19 @@ import { PhotoArchiveStack } from '../lib/photo-archive-stack';
 import { Configuration } from '../conf/configuration';
 import { PhotoArchiveSettingsStack } from '../lib/photo-archive-settings-stack';
 import { PhotoArchiveBucketsStack } from '../lib/photo-archive-buckets-stack';
+import { ConfigurationSingletonFactory } from '../lib/conf/configuration-singleton-factory';
 
 const app = new cdk.App();
 
-const configuration = new Configuration()
-const deploymentRegion = configuration.getConfiguration().deploymentRegion
+const settings = ConfigurationSingletonFactory.getConcreteSettings()
 
-let photoArchiveStackName = configuration.getConfiguration().photoArchiveStackName ?? `photo-archive-stack`
-let photoArchiveSettingsStackName = configuration.getConfiguration().photoArchiveSettingsStackName ?? `photo-archive-settings-stack`
-let photoArchiveBucketsStackName = configuration.getConfiguration().photoArchiveBucketsStackName ?? `photo-archive-bucket-stack`
 
-const appendRegionToStackNames = configuration.getConfiguration().appendDeploymentRegionToStackNames ?? true
-if(appendRegionToStackNames){
+const deploymentRegion = settings.deploymentRegion
+let photoArchiveStackName = settings.photoArchiveStackName
+let photoArchiveSettingsStackName = settings.photoArchiveSettingsStackName
+let photoArchiveBucketsStackName = settings.photoArchiveBucketsStackName
+
+if(settings.appendDeploymentRegionToStackNames){
   photoArchiveStackName += `-${deploymentRegion}`
   photoArchiveSettingsStackName += `-${deploymentRegion}`
   photoArchiveBucketsStackName += `-${deploymentRegion}`
@@ -26,7 +27,6 @@ if(appendRegionToStackNames){
 const photoArchiveBucketsStack = new PhotoArchiveBucketsStack(app, `photo-archive-bucket-stack-${deploymentRegion}-id`,{
   stackName: photoArchiveBucketsStackName,
   description: "Stack containing S3 archive bucket configuration for photo archiving infrastructure",
-  configuration: configuration,
 
   env:{
     region: deploymentRegion,
@@ -38,7 +38,6 @@ const photoArchiveStack = new PhotoArchiveStack(app, `photo-archive-stack-${depl
   stackName: photoArchiveStackName,
   description: "Main stack containing architecture for photo archive infrastructure",
 
-  configuration: configuration,
   mainBuckets: photoArchiveBucketsStack.mainBuckets,
 
   env:{
@@ -50,7 +49,7 @@ const photoArchiveStack = new PhotoArchiveStack(app, `photo-archive-stack-${depl
 new PhotoArchiveSettingsStack(app, `photo-archive-settings-stack-${deploymentRegion}-id`, {
   stackName: photoArchiveSettingsStackName,
   description: "Stack containing settings related infrastructure for photo archive infrastructure",
-  features: configuration.getConfiguration().features,
+  features: settings.features,
   lambdaMap: photoArchiveStack.lambdaMap,
 
   env:{

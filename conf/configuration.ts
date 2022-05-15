@@ -1,5 +1,5 @@
 import { AbstractConfiguration } from "../lib/conf/abstract-configuration";
-import { IConfiguration } from "../lib/conf/i-configuration";
+import { ISettings } from "../lib/conf/settings";
 import { Features } from "../lib/enums/features";
 import { Regions } from "../lib/enums/regions";
 
@@ -13,7 +13,7 @@ export class Configuration extends AbstractConfiguration{
      * See README or /lib/conf/i-configuration.ts for details of all the available configurations and what they do.
      * @returns IConfiguration - object representing all of the configuration settings set to their desired values
      */
-    public getConfiguration(): IConfiguration {
+    public getConfiguration(): ISettings {
         return {
             /**
              * Stack names in AWS CloudFormation

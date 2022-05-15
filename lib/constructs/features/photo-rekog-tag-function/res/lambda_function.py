@@ -1,6 +1,8 @@
 import json
 import boto3
 from os import environ
+from feature_processing import FeatureProcessing
+from dynamo_helper import DynamoHelper, DynamoEvent
 
 s3 = boto3.client('s3')
 sqs = boto3.client('sqs')
@@ -77,37 +79,17 @@ def lambda_handler(event, context):
             }
         )
 
-    current_number_features_completed = event["numberOfFeaturesCompleted"] + 1
-    if current_number_features_completed < len(event["features"]):
-        # there are more features to complete.
+    fp = FeatureProcessing(event)
+    updated_fp = fp.generate_updated_request_queue_object(FEATURE_NAME)
+    if updated_fp.has_more_processing():
+        updated_fp.send_request_object_to_queue(REQUEST_QUEUE_URL, sqs)
 
-        # mark ours as done
-        for index, feature in enumerate(event["features"]):
-            if feature["name"] == FEATURE_NAME:
-                event["features"][index]["completed"] = True
-                event["numberOfFeaturesCompleted"] = current_number_features_completed
-                break
-
-        # put into the requestQueue
-        sqs.send_message(
-            QueueUrl=REQUEST_QUEUE_URL,
-            MessageBody=json.dumps(event)
-        )
-
-    if DYNAMODB_METRICS_QUEUE_URL != "Invalid":
-        print("DynamoDB Metrics Enabled. Creating Entry")
-
-        dynamo_event = {
-            "bucket": bucket,
-            "key": key,
-            "bucketArn": bucketArn,
-            "featureName": FEATURE_NAME,
-            "featureData": rekog_response["Labels"]
-        }
-
-        sqs.send_message(
-            QueueUrl=DYNAMODB_METRICS_QUEUE_URL,
-            MessageBody=json.dumps(dynamo_event)
-        )
+    de = DynamoEvent()
+    de.bucket = bucket
+    de.key = key
+    de.bucketArn = bucketArn
+    de.featureName = FEATURE_NAME
+    de.featureData = rekog_response["Labels"]
+    DynamoHelper(DYNAMODB_METRICS_QUEUE_URL, sqs).create_entry(de)
     
     print("Feature Processing Complete. Terminating")

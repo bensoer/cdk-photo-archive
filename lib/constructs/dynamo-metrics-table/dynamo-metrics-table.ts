@@ -3,7 +3,8 @@ import {
     aws_dynamodb as dynamodb,
     aws_sqs as sqs,
     aws_iam as iam,
-    aws_lambda as lambda
+    aws_lambda as lambda,
+    aws_s3 as s3
 } from 'aws-cdk-lib'
 import { RemovalPolicy, Duration } from "aws-cdk-lib";
 import { ManagedPolicies, ServicePrincipals } from "cdk-constants";
@@ -65,7 +66,7 @@ export class DynamoMetricsTable  extends Construct {
             projectionType: dynamodb.ProjectionType.ALL
         })*/
 
-        const dynamoLambdaRole = new iam.Role(this, 'pa-dynamodb-lambda-service-role-id', {
+        const dynamoLambdaRole = new iam.Role(this, 'DynamoLambdaServiceRole', {
             roleName: "pa-dynamodb-lambda-service-role",
             description: "Service Role For DynamoDB Lambda",
             assumedBy: new iam.ServicePrincipal(ServicePrincipals.LAMBDA)
@@ -77,7 +78,7 @@ export class DynamoMetricsTable  extends Construct {
             )
         )
 
-        const dynamoLambdaRoleSQSPolicy = new iam.Policy(this, 'pa-dynamodb-lambda-service-role-sqs-receive-policy-id', {
+        const dynamoLambdaRoleSQSPolicy = new iam.Policy(this, 'DynamoLambdaSQSReceivePolicy', {
             policyName: 'pa-dynamodb-lambda-service-role-sqs-receive-policy',
             roles: [
                 dynamoLambdaRole
@@ -99,7 +100,7 @@ export class DynamoMetricsTable  extends Construct {
         // applies policy for the lambda to Read-Write to our dynamo table
         this.dynamoTable.grantReadWriteData(dynamoLambdaRole)
 
-        this.dynamoLambda = new lambda.Function(this, 'pa-dynamodb-lambda-id', {
+        this.dynamoLambda = new lambda.Function(this, 'DynamoMetricsLambda', {
             functionName: 'dynamodb-lambda-function',
             description: 'DynamoDB Lambda For Processing Photo Archive Metrics Requests From DynamoDB Queue',
             runtime: lambda.Runtime.PYTHON_3_8,
@@ -116,7 +117,26 @@ export class DynamoMetricsTable  extends Construct {
         this.dynamoLambda.addEventSource(new SqsEventSource(this.dynamoQueue, {
             batchSize: 1
         }))
+    }
 
-
+    public setDynamoQueuePolicyToAllowLambdas(featureLambdas: Array<lambda.Function>){
+        const lambdaArns = featureLambdas.map((featureLambda) => featureLambda.functionArn)
+        this.dynamoQueue.addToResourcePolicy(new iam.PolicyStatement({
+                principals:[
+                    new iam.ServicePrincipal(ServicePrincipals.LAMBDA)
+                ],
+                actions:[
+                    "sqs:SendMessage",
+                ],
+                resources:[
+                    this.dynamoQueue.queueArn
+                ],
+                conditions:{
+                    "ArnLike": {
+                        "aws:SourceArn": lambdaArns
+                    }
+                }
+            })
+        )
     }
 }

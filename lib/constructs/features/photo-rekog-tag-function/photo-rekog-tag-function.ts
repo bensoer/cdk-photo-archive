@@ -28,7 +28,7 @@ export class PhotoRekogTagFunction extends Construct{
         super(scope, id)
 
 
-        const rekogFunctionRole = new iam.Role(this, "prtf-service-role-id", {
+        const rekogFunctionRole = new iam.Role(this, "PRTFServiceRole", {
             roleName: "prtf-service-role",
             description: "Service Role For Photo Rekognition Tag Function",
             assumedBy: new iam.ServicePrincipal(ServicePrincipals.LAMBDA)
@@ -40,7 +40,7 @@ export class PhotoRekogTagFunction extends Construct{
           )
         )
       
-        const rekogFunctionRoleSQSSendPolicy = new iam.Policy(this, "prtf-service-role-sqs-send-policy-id", {
+        const rekogFunctionRoleSQSSendPolicy = new iam.Policy(this, "PRTFServiceRoleSQSPolicy", {
           policyName: "prtf-service-role-sqs-send-policy",
           roles: [
             rekogFunctionRole
@@ -57,7 +57,7 @@ export class PhotoRekogTagFunction extends Construct{
           ]
         })
 
-        const rekogFunctionRoleRekognitionPolicy = new iam.Policy(this, "prtf-service-role-rekognition-policy-id", {
+        const rekogFunctionRoleRekognitionPolicy = new iam.Policy(this, "PRTFServiceRoleRekognitionPolicy", {
             policyName: "prtf-service-role-rekognition-policy",
             roles:[
                 rekogFunctionRole
@@ -78,7 +78,7 @@ export class PhotoRekogTagFunction extends Construct{
         const bucketArns = props.buckets.map((bucket) => bucket.bucketArn)
         const bucketArnsSub = bucketArns.map((bucketArn) => bucketArn + "/*")
         const mergedBucketArns = bucketArns.concat(bucketArnsSub)
-        const photoMetaFunctionRoleS3Policy = new iam.Policy(this, "prtf-service-role-s3-policy-id", {
+        const photoMetaFunctionRoleS3Policy = new iam.Policy(this, "PRTFServiceRoleS3Policy", {
           policyName: "prtf-service-role-s3-policy",
           roles:[
             rekogFunctionRole
@@ -101,7 +101,7 @@ export class PhotoRekogTagFunction extends Construct{
           rekogMinConfidence = "55.0"
         }
 
-        this.rekogFunction = new lambda.Function(this, `${Features.PHOTO_REKOG_TAG}-function-id`, {
+        this.rekogFunction = new lambda.Function(this, `PRTFFunction`, {
           functionName: `${Features.PHOTO_REKOG_TAG}-function`,
           description: 'Photo Rekognition Tag Function. Tagging S3 Photos with Contents Labels Using AWS Rekognition',
           runtime: lambda.Runtime.PYTHON_3_8,

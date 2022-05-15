@@ -28,7 +28,7 @@ export class PhotoMetaTagFunction extends Construct{
         super(scope, id)
 
 
-        const photoMetaFunctionRole = new iam.Role(this, "pmtf-service-role-id", {
+        const photoMetaFunctionRole = new iam.Role(this, "PMTFServiceRole", {
             roleName: "pmtf-service-role",
             description: "Service Role For Photo Meta Tag Function",
             assumedBy: new iam.ServicePrincipal(ServicePrincipals.LAMBDA)
@@ -40,7 +40,7 @@ export class PhotoMetaTagFunction extends Construct{
           )
         )
       
-        const photoMetaFunctionRoleSQSSendPolicy = new iam.Policy(this, "pmtf-service-role-sqs-send-policy-id", {
+        const photoMetaFunctionRoleSQSSendPolicy = new iam.Policy(this, "PMTFServiceRoleSQSPolicy", {
           policyName: "pmtf-service-role-sqs-send-policy",
           roles: [
             photoMetaFunctionRole
@@ -61,7 +61,7 @@ export class PhotoMetaTagFunction extends Construct{
         const bucketArns = props.buckets.map((bucket) => bucket.bucketArn)
         const bucketArnsSub = bucketArns.map((bucketArn) => bucketArn + "/*")
         const mergedBucketArns = bucketArns.concat(bucketArnsSub)
-        const photoMetaFunctionRoleS3Policy = new iam.Policy(this, "pmtf-service-role-s3-policy-id", {
+        const photoMetaFunctionRoleS3Policy = new iam.Policy(this, "PMTFServiceRoleS3Policy", {
           policyName: "pmtf-service-role-s3-policy",
           roles:[
             photoMetaFunctionRole
@@ -79,14 +79,14 @@ export class PhotoMetaTagFunction extends Construct{
           
         })
 
-        this.photoMetaFunction = new lambda.Function(this, `p,tf-${Features.PHOTO_META_TAG}-function-id`, {
+        this.photoMetaFunction = new lambda.Function(this, `PMTFFunction`, {
           functionName: `${Features.PHOTO_META_TAG}-function`,
           description: 'Photo Meta Tag Function. Tagging S3 photo resources with photo metrics.',
           runtime: lambda.Runtime.PYTHON_3_8,
-          layers: props.onLayerRequestListener([LayerTypes.EXIFREADLAYER]),
+          layers: props.onLayerRequestListener([LayerTypes.EXIFREADLAYER, LayerTypes.COMMONLIBLAYER]),
           memorySize: 1024,
           handler: 'lambda_function.lambda_handler',
-          code: lambda.Code.fromAsset(path.join(__dirname, './res/photo_meta_function')),
+          code: lambda.Code.fromAsset(path.join(__dirname, './res')),
           timeout: props.lambdaTimeout,
           role: photoMetaFunctionRole,
           environment:{

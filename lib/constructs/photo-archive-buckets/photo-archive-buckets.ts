@@ -10,16 +10,16 @@ import { Construct } from "constructs";
 import { HashUtil } from '../../utils/hashutil';
 import * as path from 'path'
 import { ServicePrincipals } from 'cdk-constants';
+import { FormatUtils } from '../../utils/formatutils';
 
 export interface PhotoArchiveBucketsProps {
-    switchToInfrequentAccessTierAfterDays: number,
-    switchToGlacierAccessTierAfterDays: number,
-    createBuckets: boolean,
-    bucketsToImport?: Array<string>
-    createBucketsWithPrefix?: string
-    appendRegionToBucketName: boolean,
-    applyLoggingToMainBuckets: boolean,
-    applyInventoryToMainBuckets: boolean,
+    switchToInfrequentAccessTierAfterDays: number
+    switchToGlacierAccessTierAfterDays: number
+    bucketsToImport: Array<string>
+    createBucketsWithPrefix: string
+    appendRegionToBucketName: boolean
+    applyLoggingToMainBuckets: boolean
+    applyInventoryToMainBuckets: boolean
     applyTransitionsToMainBuckets: boolean
 }
 
@@ -32,15 +32,15 @@ export class PhotoArchiveBuckets extends Construct {
         super(scope, id)
 
         const bucketNames = this.createBucketNames(props)
-        const bucketArns = bucketNames.mainBucketNames.concat(bucketNames.loggingBucketName).map((item) => `arn:aws:s3:::${item}`)
+        const bucketArns = FormatUtils.convertBucketNamesToArns(bucketNames.mainBucketNames.concat(bucketNames.loggingBucketName))
 
-        const bucketHandlerLambdaRole = new iam.Role(this, "pa-buckethandler-service-role-id",{
+        const bucketHandlerLambdaRole = new iam.Role(this, "BucketHandlerServiceRole",{
             roleName: "pa-buckethandler-service-role",
             description: "Assumed Role By pa-buckethandler-function",
             assumedBy: new iam.ServicePrincipal(ServicePrincipals.LAMBDA)
         })
 
-        const bucketHandlerLambdaRoleS3Policy = new iam.Policy(this, "pa-buckethandler-service-role-s3-policy-id", {
+        const bucketHandlerLambdaRoleS3Policy = new iam.Policy(this, "BucketHandlerServiceRoleS3Policy", {
             policyName: "pa-buckethandler-service-role-s3-policy",
             roles: [
                 bucketHandlerLambdaRole
@@ -65,7 +65,7 @@ export class PhotoArchiveBuckets extends Construct {
             ]
         })
 
-        const bucketHandlerLambda = new lambda.Function(this, 'pa-buckethandler-function-id', {
+        const bucketHandlerLambda = new lambda.Function(this, 'BucketHandlerFunction', {
             functionName: 'pa-buckethandler-function',
             description: 'Custom Resource Bucket Handling For Photo Archive',
             runtime: lambda.Runtime.PYTHON_3_8,
@@ -75,12 +75,12 @@ export class PhotoArchiveBuckets extends Construct {
             timeout: Duration.minutes(15)
         })
 
-        const bucketHandlerResourceProvider = new cr.Provider(this, 'pa-buckethandler-provider-id',{
+        const bucketHandlerResourceProvider = new cr.Provider(this, 'BucketHandlerProvider',{
             onEventHandler: bucketHandlerLambda,
             logRetention: logs.RetentionDays.ONE_DAY
         })
 
-        const bucketHandlerCustomResource = new CustomResource(this, 'pa-buckethandler-customresource-id',{
+        const bucketHandlerCustomResource = new CustomResource(this, 'BucketHandlerCustomResource',{
             resourceType: 'Custom::BucketHandler',
             serviceToken: bucketHandlerResourceProvider.serviceToken,
             properties: {
@@ -99,7 +99,7 @@ export class PhotoArchiveBuckets extends Construct {
         })
 
         const loggingBucketArn = bucketHandlerCustomResource.getAtt('loggingBucketArn').toString()
-        this.loggingBucket = s3.Bucket.fromBucketArn(this, 'pa-logging-bucket-import-id', loggingBucketArn)
+        this.loggingBucket = s3.Bucket.fromBucketArn(this, 'LoggingBucketImport', loggingBucketArn)
 
         /*const mainBucketArnsToken = bucketHandlerCustomResource.getAtt('bucketArns')
         const mainBucketArns = Token.asList(mainBucketArnsToken)*/
@@ -107,7 +107,7 @@ export class PhotoArchiveBuckets extends Construct {
         for(const mainBucketArn of bucketArns){
             const hash = HashUtil.generateIDSafeHash(mainBucketArn, 15)
             this.mainBuckets.push(
-                s3.Bucket.fromBucketArn(this, 'pa-main-bucket-import-id-' + hash, mainBucketArn)
+                s3.Bucket.fromBucketArn(this, 'MainBucketImport-' + hash, mainBucketArn)
             )
         }
 
@@ -116,27 +116,31 @@ export class PhotoArchiveBuckets extends Construct {
 
     private createBucketNames(props: PhotoArchiveBucketsProps): {mainBucketNames: Array<string>, loggingBucketName: string}{
 
-        let prefix = "pt"
-        if(props.createBucketsWithPrefix !== undefined){
-            prefix = props.createBucketsWithPrefix
+        const mainBucketNames = new Array<string>()
+
+        // if we have been given buckets to import, we use those
+        if(props.bucketsToImport.length > 0){
+
+            for(const bucketArn of props.bucketsToImport){
+                const bucketName = bucketArn.substr(bucketArn.lastIndexOf(':'))
+                mainBucketNames.push(bucketName)
+            }
+
+        // if not, we generate our own
+        }else{
+            
+            let mainBucketName = `${props.createBucketsWithPrefix}-photo-archive`
+            if(props.appendRegionToBucketName){
+                mainBucketName += `-${Stack.of(this).region}`
+            }
+
+            mainBucketNames.push(mainBucketName)
         }
 
-        let loggingBucketName = `${prefix}-photo-archive-logging`
+        // logging bucket name is always generated. Later decides whether it is created or not
+        let loggingBucketName = `${props.createBucketsWithPrefix}-photo-archive-logging`
         if(props.appendRegionToBucketName){
             loggingBucketName += `-${Stack.of(this).region}`
-        }
-
-        let mainBucketName = `${prefix}-photo-archive`
-        if(props.appendRegionToBucketName){
-            mainBucketName += `-${Stack.of(this).region}`
-        }
-
-        const mainBucketNames = new Array<string>()
-        mainBucketNames.push(mainBucketName)
-
-        for(const bucketArn of props.bucketsToImport ?? []){
-            const bucketName = bucketArn.substr(bucketArn.lastIndexOf(':'))
-            mainBucketNames.push(bucketName)
         }
 
         return {
