@@ -104,7 +104,7 @@ export class PhotoArchiveBuckets extends Construct {
         /*const mainBucketArnsToken = bucketHandlerCustomResource.getAtt('bucketArns')
         const mainBucketArns = Token.asList(mainBucketArnsToken)*/
 
-        for(const mainBucketArn of bucketArns){
+        for(const mainBucketArn of FormatUtils.convertBucketNamesToArns(bucketNames.mainBucketNames)){
             const hash = HashUtil.generateIDSafeHash(mainBucketArn, 15)
             this.mainBuckets.push(
                 s3.Bucket.fromBucketArn(this, 'MainBucketImport-' + hash, mainBucketArn)
