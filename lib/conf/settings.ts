@@ -50,18 +50,6 @@ export interface ISettings extends Record<string, any> {
     photoArchiveStackName?: string
 
     /**
-     * Specify the name of the photo archive settings stack name in CloudFormation
-     * Leave blank to use default. Default name is "photo-archive-settings-stack"
-     */
-    photoArchiveSettingsStackName?: string
-
-    /**
-     * Specify the name of the photo archive buckets stack name in CloudFormation
-     * Leave blank to use default. Default name is "photo-archive-buckets-stack"
-     */
-    photoArchiveBucketsStackName?:string
-
-    /**
      * Specify whetehr stack names should have their deployment region appended to them.
      * Leave blank to use default. Default value is TRUE
      * 
@@ -70,10 +58,6 @@ export interface ISettings extends Record<string, any> {
      */
     appendDeploymentRegionToStackNames?:boolean
 
-    /**
-     * Region the cdk will be deployed to
-     */
-    deploymentRegion: Regions
 
     /**
      * Enable/Disable the dynamo metrics table. This is a table that will store verbose detailed information about each

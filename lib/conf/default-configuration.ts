@@ -15,8 +15,6 @@ export class DefaultConfiguration extends AbstractConfiguration {
              * Stack names in AWS CloudFormation
              */
             photoArchiveStackName: "photo-archive-stack",
-            photoArchiveSettingsStackName: "photo-archive-settings-stack",
-            photoArchiveBucketsStackName: "photo-archive-buckets-stack",
             appendDeploymentRegionToStackNames: true,
     
             /**
@@ -43,11 +41,6 @@ export class DefaultConfiguration extends AbstractConfiguration {
              * DynamoDB Metrics Table Feature
              */
             enableDynamoMetricsTable: false,
-             
-             /**
-              * Region to deploy this project to - REQUIRED parameter so this should be overrided
-              */
-             deploymentRegion: Regions.USEAST1,
     
              /**
               * List of features enabled - REQUIRED parameter so this should be overrided

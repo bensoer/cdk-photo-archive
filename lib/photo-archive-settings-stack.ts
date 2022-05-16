@@ -1,16 +1,16 @@
-import { Stack, StackProps } from 'aws-cdk-lib';
+import { NestedStack, NestedStackProps, Stack, StackProps } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import { 
   aws_ssm as ssm,
 } from 'aws-cdk-lib';
 import { Features } from './enums/features';
 
-export interface PhotoArchiveSettingsStackProps extends StackProps {
+export interface PhotoArchiveSettingsStackProps extends NestedStackProps {
     features: Array<Features>
     lambdaMap: Map<Features, string>
 }
 
-export class PhotoArchiveSettingsStack extends Stack {
+export class PhotoArchiveSettingsStack extends NestedStack {
   constructor(scope: Construct, id: string, props: PhotoArchiveSettingsStackProps) {
     super(scope, id, props);
     /**

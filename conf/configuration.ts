@@ -28,11 +28,6 @@ export class Configuration extends AbstractConfiguration{
             appendDeploymentRegionToStackNames: true,
 
             /**
-             * Region to deploy this project to
-             */
-            deploymentRegion: Regions.USEAST1,
-
-            /**
              * List of Features to enable in the project. See /lib/enums/features.ts for all
              * available features
              */

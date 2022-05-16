@@ -18,13 +18,7 @@ export interface IConcreteSettings extends Record<string, any> {
 
     photoArchiveStackName: string
 
-    photoArchiveSettingsStackName: string
-
-    photoArchiveBucketsStackName:string
-
     appendDeploymentRegionToStackNames:boolean
-
-    deploymentRegion: Regions
 
     enableDynamoMetricsTable: boolean
 

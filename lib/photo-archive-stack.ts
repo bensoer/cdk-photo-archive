@@ -1,68 +1,67 @@
-import { Duration, Stack, StackProps } from 'aws-cdk-lib';
+import { Duration, Stack, StackProps, Tags, Token } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
-import { 
-  aws_lambda as lambda,
-  aws_s3 as s3,
-} from 'aws-cdk-lib';
-import { BucketEventHandler } from './constructs/bucket-event-handler/bucket-event-handler';
 import { DispatcherFunction } from './constructs/dispatcher-function/dispatcher-function';
 import { RequestBuilderFunction } from './constructs/request-builder-function/request-builder-function';
 import { RequestQueue } from './constructs/queues/request-queue/request-queue';
-import { HashTagFunction } from './constructs/features/hash-tag-function/hash-tag-function';
-import { PhotoMetaTagFunction } from './constructs/features/photo-meta-tag-function/photo-meta-tag-function';
-import { BucketTopicEventLinker } from './constructs/bucket-topic-event-linker/bucket-topic-event-linker';
-import { Features } from './enums/features';
-import { PhotoRekogTagFunction } from './constructs/features/photo-rekog-tag-function/photo-rekog-tag-function';
-import { DynamoMetricsTable } from './constructs/dynamo-metrics-table/dynamo-metrics-table';
-import { LambdaLayers, LayerTypes } from './constructs/lambda-layers/lambda-layers';
-import { TopicSubscribedEventQueue } from './constructs/topic-subscribed-event-queue/topic-subscribed-event-queue';
 import { ConfigurationSingletonFactory } from './conf/configuration-singleton-factory';
+import { PhotoArchiveDynamoStack } from './photo-archive-dynamo-stack';
+import { PhotoArchiveSettingsStack } from './photo-archive-settings-stack';
+import { PhotoArchiveBucketsStack } from './photo-archive-buckets-stack';
+import { PhotoArchiveFeatureStack } from './photo-archive-feature-stack';
+import { PhotoArchiveLambdaLayerStack } from './photo-archive-lambda-layer-stack';
 
 export interface PhotoArchiveStackProps extends StackProps {
-  mainBuckets: Array<s3.IBucket>
+
 }
 
 export class PhotoArchiveStack extends Stack {
-
-   public readonly lambdaMap: Map<Features, string> = new Map()
 
   constructor(scope: Construct, id: string, props: PhotoArchiveStackProps) {
     super(scope, id, props);
 
     const settings = ConfigurationSingletonFactory.getConcreteSettings()
-    const mainBuckets = props.mainBuckets
-
     const defaultLambdaTimeout = Duration.minutes(15)
+
+    // ========================
+    // Lambda Layers
+    // ========================
+
+    // PhotoArchiveLambdaLayerStack
+    const photoArchiveLambdaLayerStack = new PhotoArchiveLambdaLayerStack(this, 'PhotoArchiveLambdaLayerStack', {})
+    Tags.of(photoArchiveLambdaLayerStack).add('SubStackName', photoArchiveLambdaLayerStack.stackName)
+    const layerFinder = photoArchiveLambdaLayerStack.layerFinder
+
+    // =========================
+    // S3 BUCKETS + EVENT HANDLING
+    // =========================
+
+    // PhotoArchiveBucketNestedStack
+    const photoArchiveBucketsNestedStack = new PhotoArchiveBucketsStack(this, 'PhotoArchiveBucketsStack', {
+      lambdaTimeout: defaultLambdaTimeout,
+      onLayerRequestListener: layerFinder
+    })
+    Tags.of(photoArchiveBucketsNestedStack).add('SubStackName', photoArchiveBucketsNestedStack.stackName)
+    const mainBuckets = photoArchiveBucketsNestedStack.mainBuckets
+    const bucketEventQueue = photoArchiveBucketsNestedStack.bucketEventQueue
 
     // =========================
     // DYNAMO DB
     // =========================
 
-    let dynamoMetricsTable: DynamoMetricsTable | undefined = undefined
+    let photoArchiveDynamoStack: PhotoArchiveDynamoStack | undefined = undefined
     if(settings.enableDynamoMetricsTable){
-      dynamoMetricsTable = new DynamoMetricsTable(this, "DynamoMetricsTable", {
-        lambdaTimeout: defaultLambdaTimeout
+      photoArchiveDynamoStack = new PhotoArchiveDynamoStack(this, 'PhotoArchiveDynamoStack', {
+        lambdaTimeout: defaultLambdaTimeout,
       })
+
+      Tags.of(photoArchiveDynamoStack).add('SubStackName', photoArchiveDynamoStack.stackName)
     }
         
     // ==========================
     // LAMBDAS + QUEUES
     // ==========================
 
-    const featureLambdas = new Array<lambda.Function>()
-
-    // Bucket -> SNS Topic
-    const bucketEventHandler = new BucketEventHandler(this, "MainBucketsEventHandling", {
-      buckets: mainBuckets,
-      eventTopicName: "pt-pa-topic",
-    })
-    // SNS Topic - > SQS Queue
-    const bucketEventQueue = new TopicSubscribedEventQueue(this, "MainBucketEventsQueue", {
-      topic: bucketEventHandler.eventTopic,
-      queueName: "pt-pa-event-queue",
-      lambdaTimeout: defaultLambdaTimeout
-    })
-
+    
     // RequestBuilderLambda -> RequestQueue
     // FeatureLambda -> RequestQueue
     const requestQueue = new RequestQueue(this, "RequestQueue", {
@@ -70,59 +69,18 @@ export class PhotoArchiveStack extends Stack {
       requestQueueName: "pt-pa-request-queue"
     })
 
-    const lambdaLayerHandler = new LambdaLayers(this, 'LambdaLayerHandler', {
-      createLayers: [ LayerTypes.COMMONLIBLAYER, LayerTypes.EXIFREADLAYER ]
+    // PhotoArchiveFeatureStack
+    const photoArchiveFeatureStack = new PhotoArchiveFeatureStack(this, 'PhotoArchiveFeatureStack', {
+      mainBuckets: mainBuckets,
+      lambdaTimeout: defaultLambdaTimeout,
+      requestQueue: requestQueue.requestQueue,
+      dynamoQueue: photoArchiveDynamoStack?.dynamoQueue,
+      onLayerRequestListener: layerFinder,
     })
+    Tags.of(photoArchiveFeatureStack).add('SubStackName', photoArchiveFeatureStack.stackName)
+    const featureLambdas = photoArchiveFeatureStack.featureLambdas
+    const lambdaMap = photoArchiveFeatureStack.lambdaMap
 
-    const layerFinder = (layerTypes: Array<LayerTypes>) => {
-      const layers = new Array<lambda.LayerVersion>()
-      for(const layerType of layerTypes){
-        const lambdaLayer = lambdaLayerHandler.getLayerOfType(layerType)
-        if(lambdaLayer != undefined){
-          layers.push(lambdaLayer)
-        }
-      }
-      return layers
-    }
-
-    // DispatchLambda -> HashingFunction (FeatureLambda)
-    if(settings.features.includes(Features.HASH_TAG)){
-      const hashFunction = new HashTagFunction(this, "HashTagFunction", {
-        buckets: mainBuckets,
-        requestQueue: requestQueue.requestQueue,
-        lambdaTimeout: defaultLambdaTimeout,
-        onLayerRequestListener: layerFinder,
-        dynamoMetricsQueue: dynamoMetricsTable?.dynamoQueue
-      })
-      this.lambdaMap.set(Features.HASH_TAG, hashFunction.hashTagFunction.functionArn)
-      featureLambdas.push(hashFunction.hashTagFunction)
-    }
-    
-    // DispatchLambda -> PhotoMetaFunction (FeatureLambda)
-    if(settings.features.includes(Features.PHOTO_META_TAG)){
-      const photoMetaTaggerFunction = new PhotoMetaTagFunction(this, "PhotoMetaTagFunction", {
-        buckets: mainBuckets,
-        requestQueue: requestQueue.requestQueue,
-        lambdaTimeout: defaultLambdaTimeout,
-        onLayerRequestListener: layerFinder,
-        dynamoMetricsQueue: dynamoMetricsTable?.dynamoQueue
-      })
-      this.lambdaMap.set(Features.PHOTO_META_TAG, photoMetaTaggerFunction.photoMetaFunction.functionArn)
-      featureLambdas.push(photoMetaTaggerFunction.photoMetaFunction)
-    }
-
-    // DispatchLambda -> RekogFunction (FeatureLambda)
-    if(settings.features.includes(Features.PHOTO_REKOG_TAG)){
-      const rekogFunction = new PhotoRekogTagFunction(this, "PhotoRekogTagFunction", {
-        buckets:mainBuckets,
-        requestQueue: requestQueue.requestQueue,
-        lambdaTimeout: defaultLambdaTimeout,
-        onLayerRequestListener: layerFinder,
-        dynamoMetricsQueue: dynamoMetricsTable?.dynamoQueue
-      })
-      this.lambdaMap.set(Features.PHOTO_REKOG_TAG, rekogFunction.rekogFunction.functionArn)
-      featureLambdas.push(rekogFunction.rekogFunction)
-    }
     
     // RequestQueue -> DispatcherFunction
     const dispatcherFunction = new DispatcherFunction(this, "DispatcherFunction", {
@@ -133,26 +91,27 @@ export class PhotoArchiveStack extends Stack {
 
     // EventQueue -> ReqestBuilderFunction
     const requestBuilderFunction = new RequestBuilderFunction(this, "RequestBuilderFunction", {
-      eventQueue: bucketEventQueue.eventQueue,
+      eventQueue: bucketEventQueue,
       requestQueue: requestQueue.requestQueue,
       lambdaTimeout: defaultLambdaTimeout
     })
 
     if(settings.enableDynamoMetricsTable){
-      dynamoMetricsTable?.setDynamoQueuePolicyToAllowLambdas(featureLambdas)
+      photoArchiveDynamoStack?.setDynamoQueuePolicyToAllowLambdas(featureLambdas)
     }
 
     // ==========================
-    // EVENT LINKING
+    // Settings
     // ==========================
-
-    const bucketTopicEventLinker = new BucketTopicEventLinker(this, `BucketTopicEventLinker`, {
-      buckets: mainBuckets,
-      topic: bucketEventHandler.eventTopic,
-      onLayerRequestListener: layerFinder
-    })
-    bucketTopicEventLinker.node.addDependency(bucketEventHandler)
     
+    // PhotoArchiveSettingsStack
+    const photoArchiveSettingsStack = new PhotoArchiveSettingsStack(this, 'PhotoArchiveSettingsStack', {
+      features: settings.features,
+      lambdaMap: lambdaMap
+    })
+    Tags.of(photoArchiveFeatureStack).add('SubStackName', photoArchiveSettingsStack.stackName)
+
+
 
   }
 
