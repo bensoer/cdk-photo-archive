@@ -55,11 +55,11 @@ Feature lambdas are lambdas that execute a certain task every time a photo is up
         - V2 - full name overrides
 - ~~Implement creation of SSM Parameter store - housing enable/disable and lambda ARNs~~ - DONE
     - ~~Improve dynamicness of running "features" - users should be able to enable/disable in Parameter Store or defaults in CDK and things will adjust appropriatly~~ - DONE
-- Store status information of each photo in dynamoDB table ?
-    - Make this optional, enable/disable also as a setting in the configuration file
-    - Entry stores Bucket, Key and which "features" have been applied to the photo
-    - Entry stores all EXIF tag data about the photo
-    - Entry stores all Rekognition labels at default validity (55% vs 75% which is tagged)
+- ~~Store status information of each photo in dynamoDB table ?~~
+    - ~~Make this optional, enable/disable also as a setting in the configuration file~~
+    - ~~Entry stores Bucket, Key and which "features" have been applied to the photo~~
+    - ~~Entry stores all EXIF tag data about the photo~~
+    - ~~Entry stores all Rekognition labels at default validity (55% vs 75% which is tagged)~~
 - Create an API endpoint for accessing  dynamoDB table information ?
 - Create a Reactjs App to view dynamoDB table information ?
 - ~~Complete README documentation for user friendly installation and uninstallation~~ - DONE
@@ -70,6 +70,6 @@ Feature lambdas are lambdas that execute a certain task every time a photo is up
 - ~~Merge common python library code into a Lambda Layer library so it can be shared and reduce repeated code~~
 - Setup Lambda versions - implement blue/green deployments with CDK updates
 - Use StepFunctions for Feature Lambdas ?
-- Merge everything into Nested Stacks of 1 master stack
-- Don't use exports. Use SSM Parameter Store
+- ~~Merge everything into Nested Stacks of 1 master stack~~
+- ~~Don't use exports. Use SSM Parameter Store~~
 - ~~Create a ConfigurationFactory class which fetches all configurations and resolves defaults etc~~
