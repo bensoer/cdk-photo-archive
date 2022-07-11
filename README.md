@@ -42,34 +42,3 @@ Within `conf/configuration.ts` contains `getConfiguration()` method which return
 
 ## Setting Feature Lambdas
 Feature lambdas are lambdas that execute a certain task every time a photo is uploaded to the archive bucket. To use these lambdas, they must be listed in the `features` setting in the `conf/configuration.ts` file. Each feature lambda is mapped to a value in the `Features` enum. See https://github.com/bensoer/cdk-photo-archive/wiki/Configuration-Options#features for details
-
-
-# Developer Notes
-## TODO - Feature List
-- ~~Set "feature" names as more global - its hardcoded currently~~ - DONE
-- ~~Ability to import existing S3 buckets instead of having CDK project create and manage them - avoid users from having to dev CDK, make this a setting~~ - DONE
-- Configuration file
-    - ~~Ability to enable/disable which "features" to have applied to archive~~ - DONE
-    - Ability to specify naming of S3 Buckets, SQS Queues and Lambda Functions
-        - V1 - able to specify a prefix so that its unique within account / unique within AWS
-        - V2 - full name overrides
-- ~~Implement creation of SSM Parameter store - housing enable/disable and lambda ARNs~~ - DONE
-    - ~~Improve dynamicness of running "features" - users should be able to enable/disable in Parameter Store or defaults in CDK and things will adjust appropriatly~~ - DONE
-- ~~Store status information of each photo in dynamoDB table ?~~
-    - ~~Make this optional, enable/disable also as a setting in the configuration file~~
-    - ~~Entry stores Bucket, Key and which "features" have been applied to the photo~~
-    - ~~Entry stores all EXIF tag data about the photo~~
-    - ~~Entry stores all Rekognition labels at default validity (55% vs 75% which is tagged)~~
-- Create an API endpoint for accessing  dynamoDB table information ?
-- Create a Reactjs App to view dynamoDB table information ?
-- ~~Complete README documentation for user friendly installation and uninstallation~~ - DONE
-- ~~Make naming consistent between Features - SSM Param name, Lambda Name, Feature Name, Feature Enum Name~~ - DONE
-- Custom Resources - Retrieve Data Back in the CDK: https://baihuqian.github.io/2020-12-17-lambda-based-cdk-custom-resource-with-input-and-output/
-    - CustomResource for bucket handling ?
-    - CustomResource for dynamodb handling ?
-- ~~Merge common python library code into a Lambda Layer library so it can be shared and reduce repeated code~~
-- Setup Lambda versions - implement blue/green deployments with CDK updates
-- Use StepFunctions for Feature Lambdas ?
-- ~~Merge everything into Nested Stacks of 1 master stack~~
-- ~~Don't use exports. Use SSM Parameter Store~~
-- ~~Create a ConfigurationFactory class which fetches all configurations and resolves defaults etc~~
