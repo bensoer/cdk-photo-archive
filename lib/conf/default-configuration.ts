@@ -16,7 +16,12 @@ export class DefaultConfiguration extends AbstractConfiguration {
              */
             photoArchiveStackName: "photo-archive-stack",
             appendDeploymentRegionToStackNames: true,
-    
+            
+            /**
+             * Resource Naming Prefix
+             */
+            namePrefix: "pt",
+
             /**
              * Bucket naming defaults
              */

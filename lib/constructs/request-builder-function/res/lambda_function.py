@@ -9,6 +9,7 @@ sqs = boto3.client("sqs")
 
 REQUEST_QUEUE_ARN = environ.get('REQUEST_QUEUE_ARN')
 REQUEST_QUEUE_URL = environ.get('REQUEST_QUEUE_URL')
+SSM_PREFIX = environ.get('SSM_PREFIX', 'pa')
 
 def valid_event(s3_event) -> bool:
     if "Records" not in s3_event:
@@ -24,11 +25,11 @@ def valid_event(s3_event) -> bool:
 
 def get_feature_lambda_arn_if_enabled(feature_ssm_name:str):
     feature_enabled_reponse = ssm.get_parameter(
-        Name="/pa/features/{}/enabled".format(feature_ssm_name)
+        Name="/{}/features/{}/enabled".format(SSM_PREFIX, feature_ssm_name)
     )
     if feature_enabled_reponse["Parameter"]["Value"] == "TRUE":
         feature_lambda_arn_response = ssm.get_parameter(
-            Name="/pa/features/{}/lambda/arn".format(feature_ssm_name)
+            Name="/{}/features/{}/lambda/arn".format(SSM_PREFIX, feature_ssm_name)
         )
         return feature_lambda_arn_response["Parameter"]["Value"]
 
@@ -53,7 +54,7 @@ def generate_available_features() -> list:
     available_features = []
 
     features_list_response = ssm.get_parameter(
-        Name="/pa/features"
+        Name="/{}/features".format(SSM_PREFIX)
     )
     features_list = features_list_response["Parameter"]["Value"].split(",")
 
@@ -73,7 +74,9 @@ def generate_available_features() -> list:
 def lambda_handler(event, context):
 
     # parse information from EventQueue
-    sqs_records = event['Records']
+    message = event['Message']
+    parsed_message = json.loads(message)
+    sqs_records = parsed_message['Records']
     print("Processing SQS Records")
     for sqs_record in sqs_records:
         s3_event = json.loads(sqs_record["body"])

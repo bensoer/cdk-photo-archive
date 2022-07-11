@@ -51,7 +51,7 @@ export class PhotoArchiveStack extends Stack {
     let photoArchiveDynamoStack: PhotoArchiveDynamoStack | undefined = undefined
     if(settings.enableDynamoMetricsTable){
       photoArchiveDynamoStack = new PhotoArchiveDynamoStack(this, 'PhotoArchiveDynamoStack', {
-        lambdaTimeout: defaultLambdaTimeout,
+        lambdaTimeout: defaultLambdaTimeout
       })
 
       Tags.of(photoArchiveDynamoStack).add('SubStackName', photoArchiveDynamoStack.stackName)
@@ -66,7 +66,7 @@ export class PhotoArchiveStack extends Stack {
     // FeatureLambda -> RequestQueue
     const requestQueue = new RequestQueue(this, "RequestQueue", {
       dispatcherLambdaTimeout: defaultLambdaTimeout,
-      requestQueueName: "pt-pa-request-queue"
+      requestQueueName: `${settings.namePrefix}-request-queue`
     })
 
     // PhotoArchiveFeatureStack
@@ -81,23 +81,17 @@ export class PhotoArchiveStack extends Stack {
     const featureLambdas = photoArchiveFeatureStack.featureLambdas
     const lambdaMap = photoArchiveFeatureStack.lambdaMap
 
-    
-    // RequestQueue -> DispatcherFunction
-    const dispatcherFunction = new DispatcherFunction(this, "DispatcherFunction", {
-      featureLambdas: featureLambdas,
-      requestQueue: requestQueue.requestQueue,
-      lambdaTimeout: defaultLambdaTimeout
-    })
-
     // EventQueue -> ReqestBuilderFunction
     const requestBuilderFunction = new RequestBuilderFunction(this, "RequestBuilderFunction", {
       eventQueue: bucketEventQueue,
       requestQueue: requestQueue.requestQueue,
-      lambdaTimeout: defaultLambdaTimeout
+      lambdaTimeout: defaultLambdaTimeout,
+      namePrefix: settings.namePrefix
     })
 
     if(settings.enableDynamoMetricsTable){
       photoArchiveDynamoStack?.setDynamoQueuePolicyToAllowLambdas(featureLambdas)
+      photoArchiveDynamoStack?.node.addDependency(photoArchiveFeatureStack)
     }
 
     // ==========================
@@ -105,11 +99,12 @@ export class PhotoArchiveStack extends Stack {
     // ==========================
     
     // PhotoArchiveSettingsStack
-    const photoArchiveSettingsStack = new PhotoArchiveSettingsStack(this, 'PhotoArchiveSettingsStack', {
+    /**const photoArchiveSettingsStack = new PhotoArchiveSettingsStack(this, 'PhotoArchiveSettingsStack', {
       features: settings.features,
       lambdaMap: lambdaMap
     })
     Tags.of(photoArchiveFeatureStack).add('SubStackName', photoArchiveSettingsStack.stackName)
+    photoArchiveSettingsStack.node.addDependency(photoArchiveFeatureStack)**/
 
 
 

@@ -60,7 +60,7 @@ export class BucketTopicEventLinker extends Construct{
         })
       
         const eventLinkingLambda = new lambda.Function(this, `CustomResourceLambda`,{
-          functionName: `bqel-function`,
+          functionName: `btel-function`,
           description: 'Event Linking For S3 Bucket Events To SNS',
           runtime: lambda.Runtime.PYTHON_3_8,
           layers: props.onLayerRequestListener([LayerTypes.COMMONLIBLAYER]),

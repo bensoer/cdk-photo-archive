@@ -4,6 +4,7 @@ import {
     aws_lambda as lambda,
 } from 'aws-cdk-lib'
 import { Construct } from "constructs";
+import { ConfigurationSingletonFactory } from "./conf/configuration-singleton-factory";
 import { DynamoMetricsTable } from "./constructs/dynamo-metrics-table/dynamo-metrics-table";
 
 export interface PhotoArchiveDynamoNestedStackProps extends NestedStackProps{
@@ -19,8 +20,11 @@ export class PhotoArchiveDynamoStack extends NestedStack{
     constructor(scope: Construct, id: string, props: PhotoArchiveDynamoNestedStackProps){
         super(scope, id, props)
 
+        const settings = ConfigurationSingletonFactory.getConcreteSettings()
+
         this.dynamoMetricsTable = new DynamoMetricsTable(this, "DynamoMetricsTable", {
-            lambdaTimeout: props.lambdaTimeout
+            lambdaTimeout: props.lambdaTimeout,
+            namePrefix: settings.namePrefix
         })
 
         this.dynamoQueue = this.dynamoMetricsTable.dynamoQueue

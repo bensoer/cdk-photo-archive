@@ -10,6 +10,8 @@ export interface IConcreteSettings extends Record<string, any> {
 
     bucketNamePrefix: string
 
+    namePrefix: string
+
     appendRegionToBucketName: boolean
 
     switchToInfrequentAccessTierAfterDays: number

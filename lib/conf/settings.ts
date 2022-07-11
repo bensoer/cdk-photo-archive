@@ -23,6 +23,12 @@ export interface ISettings extends Record<string, any> {
     bucketNamePrefix?: string
 
     /**
+     * Specify a custom prefix for photo archive components where appropriate. 
+     * Leave undefined for detault value. Default value is "pt"
+     */
+    namePrefix?: string
+
+    /**
      * Whether or not to append the region name to the bucket name. Leave undefined for default value
      * Default value is TRUE
      */

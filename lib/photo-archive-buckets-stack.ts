@@ -57,12 +57,12 @@ export class PhotoArchiveBucketsStack extends NestedStack {
     // Bucket -> SNS Topic
     const bucketEventHandler = new BucketEventHandler(this, "MainBucketsEventHandling", {
       buckets: this.mainBuckets,
-      eventTopicName: "pt-pa-topic",
+      eventTopicName: `${settings.namePrefix}-pa-topic`,
     })
     // SNS Topic - > SQS Queue
     const bucketEventQueue = new TopicSubscribedEventQueue(this, "MainBucketEventsQueue", {
       topic: bucketEventHandler.eventTopic,
-      queueName: "pt-pa-event-queue",
+      queueName: `${settings.namePrefix}-pa-event-queue`,
       lambdaTimeout: props.lambdaTimeout
     })
     this.bucketEventQueue = bucketEventQueue.eventQueue

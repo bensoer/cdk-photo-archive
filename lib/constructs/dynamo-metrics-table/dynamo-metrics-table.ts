@@ -12,7 +12,8 @@ import * as path from 'path'
 import { SqsEventSource } from "aws-cdk-lib/aws-lambda-event-sources";
 
 export interface DynamoMetricsTableProps {
-    lambdaTimeout: Duration
+    lambdaTimeout: Duration,
+    namePrefix: string
 }
 
 export class DynamoMetricsTable  extends Construct {
@@ -27,13 +28,13 @@ export class DynamoMetricsTable  extends Construct {
         const lambdaTimeoutMinutes = props.lambdaTimeout.toMinutes()
         const visibilityTimeout = lambdaTimeoutMinutes * 6
 
-        this.dynamoQueue = new sqs.Queue(this, `pa-dynamodb-queue-id`, {
-            queueName: 'pa-dynamodb-queue',
+        this.dynamoQueue = new sqs.Queue(this, `DynamoQueue`, {
+            queueName: `${props.namePrefix}-dynamodb-queue`,
             encryption: sqs.QueueEncryption.UNENCRYPTED,
             visibilityTimeout: Duration.minutes(visibilityTimeout)
         })
 
-        this.dynamoTable = new dynamodb.Table(this, 'pa-dynamodb-table-id', {
+        this.dynamoTable = new dynamodb.Table(this, 'DynamoTable', {
             partitionKey: { name: 'hash', type: dynamodb.AttributeType.STRING },
             billingMode: dynamodb.BillingMode.PROVISIONED,
             encryption: dynamodb.TableEncryption.DEFAULT,
@@ -67,7 +68,7 @@ export class DynamoMetricsTable  extends Construct {
         })*/
 
         const dynamoLambdaRole = new iam.Role(this, 'DynamoLambdaServiceRole', {
-            roleName: "pa-dynamodb-lambda-service-role",
+            roleName: `${props.namePrefix}-dynamodb-lambda-service-role`,
             description: "Service Role For DynamoDB Lambda",
             assumedBy: new iam.ServicePrincipal(ServicePrincipals.LAMBDA)
         })
@@ -79,7 +80,7 @@ export class DynamoMetricsTable  extends Construct {
         )
 
         const dynamoLambdaRoleSQSPolicy = new iam.Policy(this, 'DynamoLambdaSQSReceivePolicy', {
-            policyName: 'pa-dynamodb-lambda-service-role-sqs-receive-policy',
+            policyName: `${props.namePrefix}-dynamodb-lambda-service-role-sqs-receive-policy`,
             roles: [
                 dynamoLambdaRole
             ],
