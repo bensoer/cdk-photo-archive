@@ -17,10 +17,10 @@ import {
 import * as path from 'path'
 import * as crypto from 'crypto'
 import { ServicePrincipals } from "cdk-constants";
-import { HashUtil } from "../../utils/hashutil";
+import { HashUtil } from "../../lib/utils/hashutil";
 import { Sns } from "aws-cdk-lib/aws-ses-actions";
-import { FormatUtils } from "../../utils/formatutils";
-import { LayerTypes } from "../lambda-layers/lambda-layers";
+import { FormatUtils } from "../../lib/utils/formatutils";
+import { LayerTypes } from "../../lib/constructs/lambda-layers/lambda-layers";
 
 
 

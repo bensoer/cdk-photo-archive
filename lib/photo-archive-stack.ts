@@ -1,4 +1,4 @@
-import { Duration, Stack, StackProps, Tags, Token } from 'aws-cdk-lib';
+import { Duration, Stack, StackProps, Tags, Token, CfnParameter } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import { DispatcherFunction } from './constructs/dispatcher-function/dispatcher-function';
 import { RequestBuilderFunction } from './constructs/request-builder-function/request-builder-function';
@@ -22,12 +22,17 @@ export class PhotoArchiveStack extends Stack {
     const settings = ConfigurationSingletonFactory.getConcreteSettings()
     const defaultLambdaTimeout = Duration.minutes(15)
 
+    
+    
+
     // ========================
     // Lambda Layers
     // ========================
 
     // PhotoArchiveLambdaLayerStack
-    const photoArchiveLambdaLayerStack = new PhotoArchiveLambdaLayerStack(this, 'PhotoArchiveLambdaLayerStack', {})
+    const photoArchiveLambdaLayerStack = new PhotoArchiveLambdaLayerStack(this, 'PhotoArchiveLambdaLayerStack', {
+      
+    })
     Tags.of(photoArchiveLambdaLayerStack).add('SubStackName', photoArchiveLambdaLayerStack.stackName)
     const layerFinder = photoArchiveLambdaLayerStack.layerFinder
 

@@ -6,7 +6,7 @@ import {
     aws_s3 as s3,
     aws_sns as sns,
 } from 'aws-cdk-lib'
-import { FormatUtils } from "../../utils/formatutils";
+import { FormatUtils } from "../../lib/utils/formatutils";
 
 export interface BucketEventHandlerProps {
     buckets: Array<s3.IBucket>

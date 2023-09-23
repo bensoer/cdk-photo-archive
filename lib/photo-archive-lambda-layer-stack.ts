@@ -28,6 +28,7 @@ export class PhotoArchiveLambdaLayerStack extends NestedStack{
     constructor(scope: Construct, id: string, props: PhotoArchiveLambdaLayerNestedStackProps){
         super(scope, id, props)
 
+
         this.lambdaLayerHandler = new LambdaLayers(this, 'LambdaLayerHandler', {
             createLayers: [ LayerTypes.COMMONLIBLAYER, LayerTypes.EXIFREADLAYER ]
         })
