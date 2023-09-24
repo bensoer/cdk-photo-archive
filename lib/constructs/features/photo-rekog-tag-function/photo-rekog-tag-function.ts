@@ -1,20 +1,21 @@
 import { Construct } from "constructs";
-import { Duration } from "aws-cdk-lib"
+import { Duration, Stack } from "aws-cdk-lib"
 import {
     aws_lambda as lambda,
     aws_iam as iam,
     aws_sqs as sqs,
     aws_s3 as s3,
-    aws_dynamodb as dynamodb
+    aws_dynamodb as dynamodb,
+    aws_ssm as ssm
 } from "aws-cdk-lib"
 import * as path from 'path'
 import { ManagedPolicies, ServicePrincipals } from "cdk-constants";
 import { Features } from "../../../enums/features";
 import { LayerTypes } from "../../lambda-layers/lambda-layers";
+import { ConfigurationSingletonFactory } from "../../../conf/configuration-singleton-factory";
 
 export interface PhotoRekogTagFunctionProps{
-    requestQueue: sqs.Queue,
-    buckets: Array<s3.IBucket>,
+    bucketArns: Array<string>,
     lambdaTimeout: Duration,
     dynamoMetricsQueue?: sqs.Queue,
     onLayerRequestListener: (layerTypes: Array<LayerTypes>) => Array<lambda.LayerVersion>
@@ -27,9 +28,10 @@ export class PhotoRekogTagFunction extends Construct{
     constructor(scope: Construct, id:string, props: PhotoRekogTagFunctionProps){
         super(scope, id)
 
+        const settings = ConfigurationSingletonFactory.getConcreteSettings()
 
         const rekogFunctionRole = new iam.Role(this, "PRTFServiceRole", {
-            roleName: "prtf-service-role",
+            roleName: `${settings.namePrefix}-prtf-service-role`,
             description: "Service Role For Photo Rekognition Tag Function",
             assumedBy: new iam.ServicePrincipal(ServicePrincipals.LAMBDA)
           })
@@ -39,26 +41,9 @@ export class PhotoRekogTagFunction extends Construct{
             ManagedPolicies.AWS_LAMBDA_BASIC_EXECUTION_ROLE
           )
         )
-      
-        const rekogFunctionRoleSQSSendPolicy = new iam.Policy(this, "PRTFServiceRoleSQSPolicy", {
-          policyName: "prtf-service-role-sqs-send-policy",
-          roles: [
-            rekogFunctionRole
-          ],
-          statements: [
-            new iam.PolicyStatement({
-              actions:[
-                "sqs:SendMessage"
-              ],
-              resources:[
-                props.requestQueue.queueArn
-              ]
-            })
-          ]
-        })
 
         const rekogFunctionRoleRekognitionPolicy = new iam.Policy(this, "PRTFServiceRoleRekognitionPolicy", {
-            policyName: "prtf-service-role-rekognition-policy",
+            policyName: `${settings.namePrefix}-prtf-service-role-rekognition-policy`,
             roles:[
                 rekogFunctionRole
             ],
@@ -73,13 +58,11 @@ export class PhotoRekogTagFunction extends Construct{
                 })
             ]
         })
-        //props.requestQueue.grantSendMessages(photoMetaFunctionRole)
 
-        const bucketArns = props.buckets.map((bucket) => bucket.bucketArn)
-        const bucketArnsSub = bucketArns.map((bucketArn) => bucketArn + "/*")
-        const mergedBucketArns = bucketArns.concat(bucketArnsSub)
-        const photoMetaFunctionRoleS3Policy = new iam.Policy(this, "PRTFServiceRoleS3Policy", {
-          policyName: "prtf-service-role-s3-policy",
+        const bucketArnsSub = props.bucketArns.map((bucketArn) => bucketArn + "/*")
+        const mergedBucketArns = props.bucketArns.concat(bucketArnsSub)
+        const rekogFunctionRoleS3Policy = new iam.Policy(this, "PRTFServiceRoleS3Policy", {
+          policyName: `${settings.namePrefix}-prtf-service-role-s3-policy`,
           roles:[
             rekogFunctionRole
           ],
@@ -93,16 +76,27 @@ export class PhotoRekogTagFunction extends Construct{
               resources: mergedBucketArns
             })
           ],
-          
         })
 
-        let rekogMinConfidence = "75.0"
-        if(props.dynamoMetricsQueue?.queueUrl != undefined){
-          rekogMinConfidence = "55.0"
-        }
+        const rekogFunctionRoleSSMPolicy = new iam.Policy(this, "PRTFServiceRoleSSMPolicy", {
+          policyName: `${settings.namePrefix}-prtf-service-role-ssm-policy`,
+          roles:[
+            rekogFunctionRole
+          ],
+          statements: [
+            new iam.PolicyStatement({
+              actions:[
+                "ssm:GetParameter"
+              ],
+              resources: [
+                `arn:aws:ssm:${Stack.of(this).region}:${Stack.of(this).account}:parameter/${settings.namePrefix}/${Features.PHOTO_REKOG_TAG}/*`
+              ]
+            })
+          ]
+        })
 
         this.rekogFunction = new lambda.Function(this, `PRTFFunction`, {
-          functionName: `${Features.PHOTO_REKOG_TAG}-function`,
+          functionName: `${settings.namePrefix}-${Features.PHOTO_REKOG_TAG}-function`,
           description: 'Photo Rekognition Tag Function. Tagging S3 Photos with Contents Labels Using AWS Rekognition',
           runtime: lambda.Runtime.PYTHON_3_8,
           memorySize: 128,
@@ -113,12 +107,42 @@ export class PhotoRekogTagFunction extends Construct{
           layers: props.onLayerRequestListener([LayerTypes.COMMONLIBLAYER]),
           environment:{
             FEATURE_NAME: Features.PHOTO_REKOG_TAG,
-            REQUEST_QUEUE_URL: props.requestQueue.queueUrl,
-            REQUEST_QUEUE_ARN: props.requestQueue.queueArn,
-            REKOG_MIN_CONFIDENCE: rekogMinConfidence,
-            REKOG_MAX_LABELS: "10",
+            SETTINGS_PREFIX: `${settings.namePrefix}`,
             DYNAMODB_METRICS_QUEUE_URL: props.dynamoMetricsQueue?.queueUrl ?? "Invalid"
           }
+        })
+
+        let rekogMinConfidence = "75.0"
+        if(props.dynamoMetricsQueue?.queueUrl != undefined){
+          rekogMinConfidence = "55.0"
+        }
+
+        new ssm.StringParameter(this, `FeaturePhotoRekogSettingsREKOGMINCONFIDENCE`, {
+          parameterName: `/${settings.namePrefix}/features/${Features.PHOTO_REKOG_TAG}/setting/REKOG_MIN_CONFIDENCE`,
+          description: `REKOG Minimum Confidence to provide as a possible guess`,
+          stringValue: rekogMinConfidence,
+          tier: ssm.ParameterTier.STANDARD
+        })
+
+        new ssm.StringParameter(this, `FeaturePhotoRekogSettingsREKOGMAXLABELS`, {
+          parameterName: `/${settings.namePrefix}/features/${Features.PHOTO_REKOG_TAG}/settings/REKOG_MAX_LABELS`,
+          description: `REKOG Maximum number of labels to generate `,
+          stringValue: "10",
+          tier: ssm.ParameterTier.STANDARD
+        })
+        
+        new ssm.StringParameter(this, `FeaturePhotoRekogEnabled`, {
+          parameterName: `/${settings.namePrefix}/features/${Features.PHOTO_REKOG_TAG}/enabled`,
+          description: `Parameter stating whether Feature PhotoRekog is Enabled`,
+          stringValue: 'TRUE',
+          tier: ssm.ParameterTier.STANDARD
+        })
+
+        new ssm.StringParameter(this, `FeaturePhotoRekogLambdaArn`, {
+            parameterName: `/${settings.namePrefix}/features/${Features.PHOTO_REKOG_TAG}/lambda/arn`,
+            description: `Parameter stating Lambda ARN to execute by Dispatcher for Feature PhotoRekog`,
+            stringValue: this.rekogFunction.functionArn,
+            tier: ssm.ParameterTier.STANDARD
         })
     }
 }

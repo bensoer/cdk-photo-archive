@@ -12,6 +12,9 @@ class FeatureProcessing:
     def has_more_processing(self) -> bool:
         current_number_features_completed = self.request_queue_object["numberOfFeaturesCompleted"] + 1
         return current_number_features_completed < len(self.request_queue_object["features"])
+    
+    def get_request_queue_object(self) -> dict:
+        return self.request_queue_object
 
     def generate_updated_request_queue_object(self, feature_name:str):
         current_number_features_completed = self.request_queue_object["numberOfFeaturesCompleted"] + 1

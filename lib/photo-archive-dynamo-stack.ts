@@ -1,4 +1,4 @@
-import { Duration, NestedStack, NestedStackProps } from "aws-cdk-lib";
+import { CfnElement, Duration, NestedStack, NestedStackProps } from "aws-cdk-lib";
 import {
     aws_sqs as sqs,
     aws_lambda as lambda,
@@ -6,12 +6,13 @@ import {
 import { Construct } from "constructs";
 import { ConfigurationSingletonFactory } from "./conf/configuration-singleton-factory";
 import { DynamoMetricsTable } from "./constructs/dynamo-metrics-table/dynamo-metrics-table";
+import { CPANestedStack } from "./constructs/cpa-nested-stack";
 
 export interface PhotoArchiveDynamoNestedStackProps extends NestedStackProps{
     lambdaTimeout: Duration
 }
 
-export class PhotoArchiveDynamoStack extends NestedStack{
+export class PhotoArchiveDynamoStack extends CPANestedStack{
 
     public readonly dynamoQueue: sqs.Queue
 

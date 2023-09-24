@@ -6,10 +6,10 @@ from os import environ
 
 ssm = boto3.client("ssm")
 sqs = boto3.client("sqs")
+sf = boto3.client('stepfunctions')
 
-REQUEST_QUEUE_ARN = environ.get('REQUEST_QUEUE_ARN')
-REQUEST_QUEUE_URL = environ.get('REQUEST_QUEUE_URL')
-SSM_PREFIX = environ.get('SSM_PREFIX', 'pa')
+STATE_MACHINE_ARN = environ.get('STATE_MACHINE_ARN')
+SETTINGS_PREFIX = environ.get('SSM_PREFIX', 'pt')
 
 def valid_event(s3_event) -> bool:
     if "Records" not in s3_event:
@@ -25,11 +25,11 @@ def valid_event(s3_event) -> bool:
 
 def get_feature_lambda_arn_if_enabled(feature_ssm_name:str):
     feature_enabled_reponse = ssm.get_parameter(
-        Name="/{}/features/{}/enabled".format(SSM_PREFIX, feature_ssm_name)
+        Name="/{}/features/{}/enabled".format(SETTINGS_PREFIX, feature_ssm_name)
     )
     if feature_enabled_reponse["Parameter"]["Value"] == "TRUE":
         feature_lambda_arn_response = ssm.get_parameter(
-            Name="/{}/features/{}/lambda/arn".format(SSM_PREFIX, feature_ssm_name)
+            Name="/{}/features/{}/lambda/arn".format(SETTINGS_PREFIX, feature_ssm_name)
         )
         return feature_lambda_arn_response["Parameter"]["Value"]
 
@@ -54,7 +54,7 @@ def generate_available_features() -> list:
     available_features = []
 
     features_list_response = ssm.get_parameter(
-        Name="/{}/features".format(SSM_PREFIX)
+        Name="/{}/features".format(SETTINGS_PREFIX)
     )
     features_list = features_list_response["Parameter"]["Value"].split(",")
 
@@ -105,11 +105,12 @@ def lambda_handler(event, context):
                 "numberOfFeaturesCompleted": 0
             }
 
-            payload_string = json.dumps(payload)
-            sqs.send_message(
-                QueueUrl=REQUEST_QUEUE_URL,
-                MessageBody=payload_string
+            response = sf.start_execution(
+                stateMachineArn=STATE_MACHINE_ARN,
+                input=payload
             )
-        
+            print("State Machine Execution Started: {}".format(response['executionArn']))
+
+
     print("Processing Complete. Terminating")
 

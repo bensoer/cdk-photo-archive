@@ -4,17 +4,19 @@ import {
     aws_lambda as lambda,
     aws_sqs as sqs,
     aws_s3 as s3,
-    aws_dynamodb as dynamodb
+    aws_dynamodb as dynamodb,
+    aws_ssm as ssm,
+    Stack,
 } from 'aws-cdk-lib'
 import { Duration } from 'aws-cdk-lib'
 import * as path from 'path'
 import { ManagedPolicies, ServicePrincipals } from "cdk-constants";
 import { Features } from "../../../enums/features";
 import { LayerTypes } from "../../lambda-layers/lambda-layers";
+import { ConfigurationSingletonFactory } from "../../../conf/configuration-singleton-factory";
 
 export interface HashTagFunctionProps {
-    buckets: Array<s3.IBucket>
-    requestQueue: sqs.Queue
+    bucketArns: Array<string>
     lambdaTimeout: Duration,
     dynamoMetricsQueue?: sqs.Queue,
     onLayerRequestListener: (layerTypes: Array<LayerTypes>) => Array<lambda.LayerVersion>
@@ -27,8 +29,10 @@ export class HashTagFunction extends Construct{
     constructor(scope:Construct, id:string, props: HashTagFunctionProps){
         super(scope, id)
 
+        const settings = ConfigurationSingletonFactory.getConcreteSettings()
+
         const hashingFunctionRole = new iam.Role(this, "HTFServiceRole", {
-            roleName: "htf-service-role",
+            roleName: `${settings.namePrefix}-htf-service-role`,
             description: "Service Role For Hash Tag Function",
             assumedBy: new iam.ServicePrincipal(ServicePrincipals.LAMBDA)
           })
@@ -38,29 +42,9 @@ export class HashTagFunction extends Construct{
             ManagedPolicies.AWS_LAMBDA_BASIC_EXECUTION_ROLE
           )
         )
-      
-        const hashingFunctionRoleSQSPolicy = new iam.Policy(this, "HTFServiceRoleSQSPolicy", {
-          policyName: "htf-service-role-sqs-policy",
-          roles: [
-            hashingFunctionRole
-          ],
-          statements: [
-            new iam.PolicyStatement({
-              actions:[
-                "sqs:SendMessage"
-              ],
-              resources:[
-                props.requestQueue.queueArn
-              ]
-            })
-          ]
-        })
-        //props.requestQueue.grantSendMessages(hashingFunctionRole)
 
-
-        const bucketArns = props.buckets.map((bucket) => bucket.bucketArn)
-        const bucketArnsSub = bucketArns.map((bucketArn) => bucketArn + "/*")
-        const mergedBucketArns = bucketArns.concat(bucketArnsSub)
+        const bucketArnsSub = props.bucketArns.map((bucketArn) => bucketArn + "/*")
+        const mergedBucketArns = props.bucketArns.concat(bucketArnsSub)
         const hashingFunctionRoleS3Policy = new iam.Policy(this, "HTFServiceRoleS3Policy", {
           policyName: "htf-service-role-s3-policy",
           roles:[
@@ -79,8 +63,25 @@ export class HashTagFunction extends Construct{
           
         })
 
+        const hashingFunctionRoleSSMPolicy = new iam.Policy(this, "HTFServiceRoleSSMPolicy", {
+          policyName: `${settings.namePrefix}-htf-service-role-ssm-policy`,
+          roles:[
+            hashingFunctionRole
+          ],
+          statements: [
+            new iam.PolicyStatement({
+              actions:[
+                "ssm:GetParameter"
+              ],
+              resources: [
+                `arn:aws:ssm:${Stack.of(this).region}:${Stack.of(this).account}:parameter/${settings.namePrefix}/${Features.HASH_TAG}/*`
+              ]
+            })
+          ]
+        })
+
         this.hashTagFunction = new lambda.Function(this, `HTFFunction`, {
-          functionName: `${Features.HASH_TAG}-function`,
+          functionName: `${settings.namePrefix}-${Features.HASH_TAG}-function`,
           description: 'Hash Tag Function. Tagging S3 resources with MD5, SHA1, SHA256 and SHA512 hashes',
           runtime: lambda.Runtime.PYTHON_3_8,
           memorySize: 1024,
@@ -91,10 +92,22 @@ export class HashTagFunction extends Construct{
           layers: props.onLayerRequestListener([LayerTypes.COMMONLIBLAYER]),
           environment:{
             FEATURE_NAME: Features.HASH_TAG,
-            REQUEST_QUEUE_URL: props.requestQueue.queueUrl,
-            REQUEST_QUEUE_ARN: props.requestQueue.queueArn,
             DYNAMODB_METRICS_QUEUE_URL: props.dynamoMetricsQueue?.queueUrl ?? "Invalid"
           }
         })
+
+        new ssm.StringParameter(this, `FeatureHashTagEnabled`, {
+          parameterName: `/${settings.namePrefix}/features/${Features.HASH_TAG}/enabled`,
+          description: `Parameter stating whether Feature HashTag is Enabled`,
+          stringValue: 'TRUE',
+          tier: ssm.ParameterTier.STANDARD
+      })
+
+      new ssm.StringParameter(this, `FeatureHashTagLambdaArn`, {
+          parameterName: `/${settings.namePrefix}/features/${Features.HASH_TAG}/lambda/arn`,
+          description: `Parameter stating Lambda ARN to execute by Dispatcher for Feature HashTag`,
+          stringValue: this.hashTagFunction.functionArn,
+          tier: ssm.ParameterTier.STANDARD
+      })
     }
 }

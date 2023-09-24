@@ -9,9 +9,12 @@ from os import environ
 from io import BytesIO
 from feature_processing import FeatureProcessing
 from dynamo_helper import DynamoHelper, DynamoEvent
+import common
 
 s3 = boto3.client("s3")
 sqs = boto3.client("sqs")
+ssm = boto3.client("ssm")
+
 class ExifTagNames(enum.Enum):
     CAMERA_MAKE = "Image Make"
     CAMERA_MODEL = "Image Model"
@@ -32,8 +35,7 @@ class TagKeys(enum.Enum):
 PHOTO_FILE_TYPES = ["jpg", "jpeg", "png", "dng"]
 
 FEATURE_NAME = environ.get("FEATURE_NAME")
-REQUEST_QUEUE_URL = environ.get("REQUEST_QUEUE_URL")
-REQUEST_QUEUE_ARN = environ.get("REQUEST_QUEUE_ARN")
+SETTINGS_PREFIX = environ.get("SETTINGS_PREFIX")
 DYNAMODB_METRICS_QUEUE_URL = environ.get("DYNAMODB_METRICS_QUEUE_URL", "Invalid")
 
 def convert_exif_shutter_speed(exif_shutter_speed_value:str) -> str:
@@ -58,6 +60,10 @@ def convert_exif_aperture_speed(exif_aperture_value:str) -> str:
 
 
 def lambda_handler(event, context):
+
+    if not common.is_feature_enabled(ssm, SETTINGS_PREFIX, FEATURE_NAME):
+        print("{} Has Been Disabled. Skipping Execution".format(FEATURE_NAME))
+        return event
     
     bucket = event["bucketName"]
     bucketArn = event["bucketArn"]
@@ -132,8 +138,6 @@ def lambda_handler(event, context):
 
     fp = FeatureProcessing(event)
     updated_fp = fp.generate_updated_request_queue_object(FEATURE_NAME)
-    if updated_fp.has_more_processing():
-        updated_fp.send_request_object_to_queue(REQUEST_QUEUE_URL, sqs)
 
     de = DynamoEvent()
     de.bucket = bucket
@@ -142,6 +146,7 @@ def lambda_handler(event, context):
     de.featureName = FEATURE_NAME
     de.featureData = { key:value for key, value in exif.items() }
     DynamoHelper(DYNAMODB_METRICS_QUEUE_URL, sqs).create_entry(de)
-        
-    
+
     print("Feature Processing Complete. Terminating")
+
+    return updated_fp.get_request_queue_object()

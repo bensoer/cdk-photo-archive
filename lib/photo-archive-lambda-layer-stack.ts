@@ -1,16 +1,17 @@
-import { NestedStack, NestedStackProps } from "aws-cdk-lib";
+import { CfnElement, NestedStack, NestedStackProps } from "aws-cdk-lib";
 import { Construct } from "constructs";
 import { LambdaLayers, LayerTypes } from "./constructs/lambda-layers/lambda-layers";
 import {
     aws_lambda as lambda
 } from 'aws-cdk-lib'
+import { CPANestedStack } from "./constructs/cpa-nested-stack";
 
 
 export interface PhotoArchiveLambdaLayerNestedStackProps extends NestedStackProps{
 
 }
 
-export class PhotoArchiveLambdaLayerStack extends NestedStack{
+export class PhotoArchiveLambdaLayerStack extends CPANestedStack{
 
     private readonly lambdaLayerHandler: LambdaLayers
 

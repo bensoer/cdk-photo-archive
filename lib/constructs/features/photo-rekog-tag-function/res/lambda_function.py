@@ -3,25 +3,38 @@ import boto3
 from os import environ
 from feature_processing import FeatureProcessing
 from dynamo_helper import DynamoHelper, DynamoEvent
+from ssm_helper import SSMHelper
+import common
 
 s3 = boto3.client('s3')
 sqs = boto3.client('sqs')
 rekog = boto3.client('rekognition')
+ssm = boto3.client('ssm')
 
 # As of writing Rekognition only works for JPG/JPEG and PNG photos
 PHOTO_FILE_TYPES = ["jpg", "jpeg", "png"]
 
 FEATURE_NAME = environ.get("FEATURE_NAME")
-REQUEST_QUEUE_URL = environ.get("REQUEST_QUEUE_URL")
-REQUEST_QUEUE_ARN = environ.get("REQUEST_QUEUE_ARN")
+SETTINGS_PREFIX = environ.get("SETTINGS_PREFIX")
+
 DYNAMODB_METRICS_QUEUE_URL = environ.get("DYNAMODB_METRICS_QUEUE_URL", "Invalid")
 
-REKOG_MIN_CONFIDENCE = float(environ.get('REKOG_MIN_CONFIDENCE', '75.0'))
-REKOG_MAX_LABELS = int(environ.get('REKOG_MAX_LABELS', '10'))
+
+ssm_helper = SSMHelper(ssm)
+
+REKOG_MIN_CONFIDENCE_SSM_KEY = "/{}/features/{}/settings/REKOG_MIN_CONFIDENCE".format(SETTINGS_PREFIX, FEATURE_NAME)
+REKOG_MIN_CONFIDENCE = float(ssm_helper.get_parameter(REKOG_MIN_CONFIDENCE_SSM_KEY) if ssm_helper.parameter_exists(REKOG_MIN_CONFIDENCE_SSM_KEY) else '75.0')
+
+REKOG_MAX_LABELS_SSM_KEY = "/{}/features/{}/settings/REKOG_MAX_LABELS".format(SETTINGS_PREFIX, FEATURE_NAME)
+REKOG_MAX_LABELS = int(ssm_helper.get_parameter(REKOG_MAX_LABELS_SSM_KEY) if ssm_helper.parameter_exists(REKOG_MAX_LABELS_SSM_KEY) else '10')
 
 def lambda_handler(event, context):
 
     print(event)
+
+    if not common.is_feature_enabled(ssm, SETTINGS_PREFIX, FEATURE_NAME):
+        print("{} Has Been Disabled. Skipping Execution".format(FEATURE_NAME))
+        return event
 
     bucket = event["bucketName"]
     bucketArn = event["bucketArn"]
@@ -81,8 +94,6 @@ def lambda_handler(event, context):
 
     fp = FeatureProcessing(event)
     updated_fp = fp.generate_updated_request_queue_object(FEATURE_NAME)
-    if updated_fp.has_more_processing():
-        updated_fp.send_request_object_to_queue(REQUEST_QUEUE_URL, sqs)
 
     de = DynamoEvent()
     de.bucket = bucket
@@ -93,3 +104,5 @@ def lambda_handler(event, context):
     DynamoHelper(DYNAMODB_METRICS_QUEUE_URL, sqs).create_entry(de)
     
     print("Feature Processing Complete. Terminating")
+
+    return updated_fp.get_request_queue_object()

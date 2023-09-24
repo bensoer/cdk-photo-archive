@@ -1,26 +1,24 @@
-import { Duration, NestedStack, NestedStackProps } from 'aws-cdk-lib';
+import { CfnElement, Duration, NestedStack, NestedStackProps } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import { 
   aws_s3 as s3, 
   aws_sqs as sqs,
   aws_sns as sns,
-  aws_lambda as lambda,
   aws_s3_notifications as s3n
 } from 'aws-cdk-lib';
 
-import { PhotoArchiveBuckets } from './constructs/photo-archive-buckets/photo-archive-buckets';
+import { BucketNames, PhotoArchiveBuckets } from './constructs/photo-archive-buckets/photo-archive-buckets';
 import { ConfigurationSingletonFactory } from './conf/configuration-singleton-factory';
-import { LayerTypes } from './constructs/lambda-layers/lambda-layers';
 import { SqsSubscription } from 'aws-cdk-lib/aws-sns-subscriptions';
+import { CPANestedStack } from './constructs/cpa-nested-stack';
 
 export interface PhotoArchiveBucketsNestedStackProps extends NestedStackProps {
   lambdaTimeout: Duration,
-  onLayerRequestListener: (layerTypes: Array<LayerTypes>) => Array<lambda.LayerVersion>
 }
 
-export class PhotoArchiveBucketsStack extends NestedStack {
+export class PhotoArchiveBucketsStack extends CPANestedStack {
 
-  public readonly mainBuckets: Array<s3.IBucket>
+  public readonly mainBucketNames: BucketNames
   public readonly bucketEventQueue: sqs.Queue
 
   constructor(scope: Construct, id: string, props: PhotoArchiveBucketsNestedStackProps) {
@@ -51,7 +49,7 @@ export class PhotoArchiveBucketsStack extends NestedStack {
 
         
     })
-    this.mainBuckets = photoArchiveBuckets.mainBuckets
+    this.mainBucketNames = photoArchiveBuckets.bucketNames
 
     // Topic for bucket events
     const topic = new sns.Topic(this, `${settings.namePrefix}-pa-topic`, {
@@ -67,32 +65,10 @@ export class PhotoArchiveBucketsStack extends NestedStack {
     topic.addSubscription(new SqsSubscription(this.bucketEventQueue))
 
     // Setup the notifications to go to the topic now
-    for(const mainBucket of this.mainBuckets){
-      mainBucket.addEventNotification(s3.EventType.OBJECT_CREATED, new s3n.SnsDestination(topic))
+    for(const mainBucket of this.mainBucketNames.mainBucketNames){
+      const bucket = s3.Bucket.fromBucketName(this, `import-${mainBucket}`, mainBucket)
+      bucket.addEventNotification(s3.EventType.OBJECT_CREATED, new s3n.SnsDestination(topic))
     }
-
-    /*
-    // Bucket -> SNS Topic
-    const bucketEventHandler = new BucketEventHandler(this, "MainBucketsEventHandling", {
-      buckets: this.mainBuckets,
-      eventTopicName: `${settings.namePrefix}-pa-topic`,
-    })
-    // SNS Topic - > SQS Queue
-    const bucketEventQueue = new TopicSubscribedEventQueue(this, "MainBucketEventsQueue", {
-      topic: bucketEventHandler.eventTopic,
-      queueName: `${settings.namePrefix}-pa-event-queue`,
-      lambdaTimeout: props.lambdaTimeout
-    })
-    this.bucketEventQueue = bucketEventQueue.eventQueue
-
-    // Bucket -> SNS Linking
-    const bucketTopicEventLinker = new BucketTopicEventLinker(this, `BucketTopicEventLinker`, {
-      buckets: this.mainBuckets,
-      topic: bucketEventHandler.eventTopic,
-      onLayerRequestListener: props.onLayerRequestListener
-    })
-    bucketTopicEventLinker.node.addDependency(bucketEventHandler)
-    */
 
   }
 
