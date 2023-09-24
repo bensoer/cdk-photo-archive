@@ -59,7 +59,6 @@ def lambda_handler(event, context):
         )
 
         print("Rekognition Complete. Applying Tagging")
-        print(rekog_response)
 
         # Grab the labels
         labels = rekog_response["Labels"]
@@ -68,7 +67,7 @@ def lambda_handler(event, context):
         # Grab all the names, but only as many as the REKOG_MAX_LABELS amount. This is the amount that will be tagged onto the S3 blob
         label_names = [ x["Name"] for x in labels[:REKOG_MAX_LABELS]]
         # Merge the tags into a single string
-        labels_string = ','.join(label_names)
+        labels_string = ':'.join(label_names)
 
         # Grab the current tagging for the S3 object
         get_object_tagging_response = s3.get_object_tagging(
@@ -83,6 +82,8 @@ def lambda_handler(event, context):
                 'Value': labels_string
             }
         ])
+
+        print(tagset)
         # Update the tags
         response = s3.put_object_tagging(
             Bucket=bucket,

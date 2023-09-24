@@ -102,26 +102,26 @@ def lambda_handler(event, context):
             {
                 'Key': TagKeys.CAMERA_AND_LENSE_INFO.value,
                 'Value': '{} {} - {}'.format(
-                    exif[ExifTagNames.CAMERA_MAKE.value],
-                    exif[ExifTagNames.CAMERA_MODEL.value],
-                    exif[ExifTagNames.LENSE_MODEL.value]
+                    exif.get(ExifTagNames.CAMERA_MAKE.value, 'Unknown'),
+                    exif.get(ExifTagNames.CAMERA_MODEL.value, 'Unknown'),
+                    exif.get(ExifTagNames.LENSE_MODEL.value, 'Unknown')
                 )
             },
             {
                 'Key': TagKeys.PHOTO_INFORMATION.value,
                 'Value': 'Shutter: {} Aperature: {} ISO: {} Resolution: {}x{} Focal Length: {}'.format(
-                    exif[ExifTagNames.IMG_SHUTTER_SPEED.value],
-                    exif[ExifTagNames.IMG_APERATURE.value],
-                    exif[ExifTagNames.IMG_ISO.value],
-                    exif[ExifTagNames.IMG_X_RESOLUTION.value],
-                    exif[ExifTagNames.IMG_Y_RESOLUTION.value],
-                    exif[ExifTagNames.LENSE_FOCAL_LENGTH.value]
+                    exif.get(ExifTagNames.IMG_SHUTTER_SPEED.value, 'Unknown'),
+                    exif.get(ExifTagNames.IMG_APERATURE.value, 'Unknown'),
+                    exif.get(ExifTagNames.IMG_ISO.value, 'Unknown'),
+                    exif.get(ExifTagNames.IMG_X_RESOLUTION.value, 'Unknown'),
+                    exif.get(ExifTagNames.IMG_Y_RESOLUTION.value, 'Unknown'),
+                    exif.get(ExifTagNames.LENSE_FOCAL_LENGTH.value, 'Unknown')
                 )
             },
             {
                 'Key': TagKeys.PHOTO_DATE.value,
                 'Value': '{}'.format(
-                    exif[ExifTagNames.IMG_DATETIME.value]
+                    exif.get(ExifTagNames.IMG_DATETIME.value, 'Unknown')
                 )
             }
         ])

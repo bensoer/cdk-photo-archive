@@ -72,7 +72,7 @@ export class PhotoMetaTagFunction extends Construct{
                 "ssm:GetParameter"
               ],
               resources: [
-                `arn:aws:ssm:${Stack.of(this).region}:${Stack.of(this).account}:parameter/${settings.namePrefix}/${Features.PHOTO_META_TAG}/*`
+                `arn:aws:ssm:${Stack.of(this).region}:${Stack.of(this).account}:parameter/${settings.namePrefix}/features/${Features.PHOTO_META_TAG}/*`
               ]
             })
           ]
@@ -90,6 +90,7 @@ export class PhotoMetaTagFunction extends Construct{
           role: photoMetaFunctionRole,
           environment:{
             FEATURE_NAME: Features.PHOTO_META_TAG,
+            SETTINGS_PREFIX: settings.namePrefix,
             DYNAMODB_METRICS_QUEUE_URL: props.dynamoMetricsQueue?.queueUrl ?? "Invalid"
           }
         })

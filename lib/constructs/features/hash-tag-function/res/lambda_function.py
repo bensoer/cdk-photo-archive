@@ -1,5 +1,3 @@
-import json
-from turtle import update
 import boto3
 from hashlib import md5, sha1, sha256, sha512
 import base64

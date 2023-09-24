@@ -74,7 +74,7 @@ export class HashTagFunction extends Construct{
                 "ssm:GetParameter"
               ],
               resources: [
-                `arn:aws:ssm:${Stack.of(this).region}:${Stack.of(this).account}:parameter/${settings.namePrefix}/${Features.HASH_TAG}/*`
+                `arn:aws:ssm:${Stack.of(this).region}:${Stack.of(this).account}:parameter/${settings.namePrefix}/features/${Features.HASH_TAG}/*`
               ]
             })
           ]
@@ -92,6 +92,7 @@ export class HashTagFunction extends Construct{
           layers: props.onLayerRequestListener([LayerTypes.COMMONLIBLAYER]),
           environment:{
             FEATURE_NAME: Features.HASH_TAG,
+            SETTINGS_PREFIX: settings.namePrefix,
             DYNAMODB_METRICS_QUEUE_URL: props.dynamoMetricsQueue?.queueUrl ?? "Invalid"
           }
         })

@@ -89,7 +89,7 @@ export class PhotoRekogTagFunction extends Construct{
                 "ssm:GetParameter"
               ],
               resources: [
-                `arn:aws:ssm:${Stack.of(this).region}:${Stack.of(this).account}:parameter/${settings.namePrefix}/${Features.PHOTO_REKOG_TAG}/*`
+                `arn:aws:ssm:${Stack.of(this).region}:${Stack.of(this).account}:parameter/${settings.namePrefix}/features/${Features.PHOTO_REKOG_TAG}/*`
               ]
             })
           ]
@@ -107,7 +107,7 @@ export class PhotoRekogTagFunction extends Construct{
           layers: props.onLayerRequestListener([LayerTypes.COMMONLIBLAYER]),
           environment:{
             FEATURE_NAME: Features.PHOTO_REKOG_TAG,
-            SETTINGS_PREFIX: `${settings.namePrefix}`,
+            SETTINGS_PREFIX: settings.namePrefix,
             DYNAMODB_METRICS_QUEUE_URL: props.dynamoMetricsQueue?.queueUrl ?? "Invalid"
           }
         })

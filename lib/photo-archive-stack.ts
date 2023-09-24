@@ -71,7 +71,16 @@ export class PhotoArchiveStack extends Stack {
     // State machine
     const smTasks = featureLambdas.map((featureLambda) => {
       return new tasks.LambdaInvoke(this, `invoke-${featureLambda.functionName}`, {
-        lambdaFunction: featureLambda
+        lambdaFunction: featureLambda,
+        /*resultSelector: {
+          meta: '$.Payload.meta',
+          bucketName: '$.Payload.bucketName',
+          bucketArn: '$.Payload.bucketArn',
+          key: '$.Payload.key',
+          features: '$.Payload.features',
+          numberOfFeaturesCompleted: '$.Payload.numberOfFeaturesComplete'
+        }*/
+        outputPath: '$.Payload'
       })
     })
 
@@ -107,18 +116,6 @@ export class PhotoArchiveStack extends Stack {
       photoArchiveDynamoStack?.setDynamoQueuePolicyToAllowLambdas(featureLambdas)
       photoArchiveDynamoStack?.node.addDependency(photoArchiveFeatureStack)
     }
-
-    // ==========================
-    // Settings
-    // ==========================
-    
-    // PhotoArchiveSettingsStack
-    /**const photoArchiveSettingsStack = new PhotoArchiveSettingsStack(this, 'PhotoArchiveSettingsStack', {
-      features: settings.features,
-      lambdaMap: lambdaMap
-    })
-    Tags.of(photoArchiveFeatureStack).add('SubStackName', photoArchiveSettingsStack.stackName)
-    photoArchiveSettingsStack.node.addDependency(photoArchiveFeatureStack)**/
 
 
 

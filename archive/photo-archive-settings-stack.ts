@@ -3,8 +3,8 @@ import { Construct } from 'constructs';
 import { 
   aws_ssm as ssm,
 } from 'aws-cdk-lib';
-import { Features } from './enums/features';
-import { CPANestedStack } from './constructs/cpa-nested-stack';
+import { Features } from '../lib/enums/features';
+import { CPANestedStack } from '../lib/constructs/cpa-nested-stack';
 
 export interface PhotoArchiveSettingsStackProps extends NestedStackProps {
     features: Array<Features>

@@ -9,7 +9,7 @@ sqs = boto3.client("sqs")
 sf = boto3.client('stepfunctions')
 
 STATE_MACHINE_ARN = environ.get('STATE_MACHINE_ARN')
-SETTINGS_PREFIX = environ.get('SSM_PREFIX', 'pt')
+SETTINGS_PREFIX = environ.get('SETTINGS_PREFIX', 'pt')
 
 def valid_event(s3_event) -> bool:
     if "Records" not in s3_event:
@@ -73,13 +73,11 @@ def generate_available_features() -> list:
 
 def lambda_handler(event, context):
 
-    # parse information from EventQueue
-    message = event['Message']
-    parsed_message = json.loads(message)
-    sqs_records = parsed_message['Records']
-    print("Processing SQS Records")
-    for sqs_record in sqs_records:
-        s3_event = json.loads(sqs_record["body"])
+    sqs_event_records = event['Records']
+    for sqs_event_record in sqs_event_records:
+        sns_event = json.loads(sqs_event_record['body'])
+
+        s3_event = json.loads(sns_event['Message'])
 
         # validate the event
         print("Validating Event")
@@ -87,17 +85,29 @@ def lambda_handler(event, context):
             print("Event Is Not Valid. Cant Process")
             print(event)
             return
+        
+        print("Processing Event Records")
+        for s3_event_record in s3_event['Records']:
 
-        print("Processing Records")
-        for s3_record in s3_event['Records']:
+            event_source = s3_event_record['eventSource']
+            event_region = s3_event_record['awsRegion']
+            event_time = s3_event_record['eventTime']
+            event_name = s3_event_record['eventName']
 
-            bucket_name = s3_record['s3']['bucket']['name']
-            bucket_arn = s3_record['s3']['bucket']['arn']
-            key = urllib.parse.unquote_plus(s3_record['s3']['object']['key'], encoding='utf-8')
+            bucket_name = s3_event_record['s3']['bucket']['name']
+            bucket_arn = s3_event_record['s3']['bucket']['arn']
+            key = urllib.parse.unquote_plus(s3_event_record['s3']['object']['key'], encoding='utf-8')
+
+            print("{} - {}@{} in {} - {}/{}".format(event_source, event_name, event_time, event_region, bucket_name, key))
             
-
             # then build out the payload
             payload = {
+                "meta": {
+                    "s3Event": s3_event_record,
+                    "snsEvent": {k:v for k,v in sns_event.items() if k != 'Message'}, # Grab everything but the s3Event data
+                    "sqsEvent": {k:v for k,v in sqs_event_record.items() if k != 'body'}, # Grab everything but the snsEvent data
+                    "lambdaEvent": {k:v for k,v in event.items() if k != 'Records'} # Grab everything but the sqsEvent data
+                },
                 "bucketName": bucket_name,
                 "bucketArn": bucket_arn,
                 "key": key,
@@ -107,9 +117,9 @@ def lambda_handler(event, context):
 
             response = sf.start_execution(
                 stateMachineArn=STATE_MACHINE_ARN,
-                input=payload
+                input=json.dumps(payload)
             )
-            print("State Machine Execution Started: {}".format(response['executionArn']))
+            print("State Machine {} Started. Execution ARN: {}".format(STATE_MACHINE_ARN, response['executionArn']))
 
 
     print("Processing Complete. Terminating")
