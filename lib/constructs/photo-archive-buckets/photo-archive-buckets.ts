@@ -1,164 +1,156 @@
-import { Duration, RemovalPolicy, Stack, StackProps } from 'aws-cdk-lib';
+import { Duration, CustomResource, RemovalPolicy, Stack, StackProps, Token } from 'aws-cdk-lib';
 import { 
     aws_s3 as s3,
+    aws_lambda as lambda,
+    aws_iam as iam,
+    custom_resources as cr,
+    aws_logs as logs,
 } from 'aws-cdk-lib'
 import { Construct } from "constructs";
 import { HashUtil } from '../../utils/hashutil';
+import * as path from 'path'
+import { ServicePrincipals } from 'cdk-constants';
+import { FormatUtils } from '../../utils/formatutils';
 
 export interface PhotoArchiveBucketsProps {
-    defaultInfrequentAccessTransitionDuration: Duration,
-    defaultGlacierAccessTransitionDuration: Duration,
-    switchToInfrequentAccessTierAfterDays?: number,
-    switchToGlacierAccessTierAfterDays?: number,
-    createBuckets: boolean,
-    bucketsToImport?: Array<string>
-    createBucketsWithPrefix?: string
+    switchToInfrequentAccessTierAfterDays: number
+    switchToGlacierAccessTierAfterDays: number
+    bucketsToImport: Array<string>
+    createBucketsWithPrefix: string
     appendRegionToBucketName: boolean
+    applyLoggingToMainBuckets: boolean
+    applyInventoryToMainBuckets: boolean
+    applyTransitionsToMainBuckets: boolean
+}
+
+export interface BucketNames { 
+    mainBucketNames: Array<string>
+    loggingBucketName: string
 }
 
 export class PhotoArchiveBuckets extends Construct {
 
-    public readonly mainBuckets: Array<s3.IBucket> = new Array<s3.IBucket>()
-    public readonly loggingBucket?: s3.Bucket
+    public readonly bucketNames: BucketNames
 
     constructor(scope: Construct , id: string, props: PhotoArchiveBucketsProps){
         super(scope, id)
 
-        if(props.createBuckets){
+        this.bucketNames = this.createBucketNames(props)
+        const bucketArns = FormatUtils.convertBucketNamesToArns(this.bucketNames.mainBucketNames.concat(this.bucketNames.loggingBucketName))
 
-            let prefix = "pt"
-            if(props.createBucketsWithPrefix !== undefined){
-                prefix = props.createBucketsWithPrefix
+        const bucketHandlerLambdaRole = new iam.Role(this, "BucketHandlerServiceRole",{
+            roleName: "pa-buckethandler-service-role",
+            description: "Assumed Role By pa-buckethandler-function",
+            assumedBy: new iam.ServicePrincipal(ServicePrincipals.LAMBDA)
+        })
+
+        const bucketHandlerLambdaRoleS3Policy = new iam.Policy(this, "BucketHandlerServiceRoleS3Policy", {
+            policyName: "pa-buckethandler-service-role-s3-policy",
+            roles: [
+                bucketHandlerLambdaRole
+            ],
+            statements: [
+                new iam.PolicyStatement({
+                    actions: [
+                        's3:ListBucket',
+                        's3:CreateBucket',
+                        's3:DeleteBucket',
+                        's3:PutEncryptionConfiguration',
+                        's3:PutLifecycleConfiguration',
+                        's3:PutBucketLogging',
+                        's3:PutInventoryConfiguration',
+                        's3:PutBucketOwnershipControls',
+                        's3:PutBucketPublicAccessBlock',
+                        's3:PutBucketPolicy',
+                        's3:GetBucketPolicy'
+                    ],
+                    resources: bucketArns
+                })
+            ]
+        })
+
+        const bucketHandlerLambda = new lambda.Function(this, 'BucketHandlerFunction', {
+            functionName: 'pa-buckethandler-function',
+            description: 'Custom Resource Bucket Handling For Photo Archive',
+            runtime: lambda.Runtime.PYTHON_3_8,
+            handler: 'lambda_function.on_event',
+            code: lambda.Code.fromAsset(path.join(__dirname, './res')),
+            role: bucketHandlerLambdaRole,
+            timeout: Duration.minutes(15)
+        })
+
+        const bucketHandlerResourceProvider = new cr.Provider(this, 'BucketHandlerProvider',{
+            onEventHandler: bucketHandlerLambda,
+            logRetention: logs.RetentionDays.ONE_DAY
+        })
+
+        const bucketHandlerCustomResource = new CustomResource(this, 'BucketHandlerCustomResource',{
+            resourceType: 'Custom::BucketHandler',
+            serviceToken: bucketHandlerResourceProvider.serviceToken,
+            properties: {
+                loggingBucketName: this.bucketNames.loggingBucketName,
+                mainBucketNames: this.bucketNames.mainBucketNames,
+                configuration: {
+                    transitions: {
+                        infrequentAccessDays: Number(props.switchToInfrequentAccessTierAfterDays),
+                        glacierDays: Number(props.switchToGlacierAccessTierAfterDays)
+                    },
+                    applyTransitionsToMainBuckets: props.applyTransitionsToMainBuckets,
+                    applyLoggingToMainBuckets: props.applyLoggingToMainBuckets,
+                    applyInventoryToMainBuckets: props.applyInventoryToMainBuckets,
+                }
+            }
+        })
+
+        //const loggingBucketArn = bucketHandlerCustomResource.getAtt('loggingBucketArn').toString()
+        //const loggingBucket = s3.Bucket.fromBucketArn(this, 'LoggingBucketImport', loggingBucketArn)
+
+        //const mainBucketArnsToken = bucketHandlerCustomResource.getAtt('bucketArns')
+        //const mainBucketArns = Token.asList(mainBucketArnsToken)
+
+        //for(const mainBucketArn of mainBucketArns){
+        /*for(const mainBucketArn of FormatUtils.convertBucketNamesToArns(this.bucketNames.mainBucketNames)){
+            const hash = HashUtil.generateIDSafeHash(mainBucketArn, 15)
+            this.mainBuckets.push(
+                s3.Bucket.fromBucketArn(this, 'MainBucketImport-' + hash, mainBucketArn)
+            )
+        }*/
+
+
+    }
+
+    private createBucketNames(props: PhotoArchiveBucketsProps): {mainBucketNames: Array<string>, loggingBucketName: string}{
+
+        const mainBucketNames = new Array<string>()
+
+        // if we have been given buckets to import, we use those
+        if(props.bucketsToImport.length > 0){
+
+            for(const bucketArn of props.bucketsToImport){
+                const bucketName = bucketArn.substr(bucketArn.lastIndexOf(':'))
+                mainBucketNames.push(bucketName)
             }
 
-            let loggingBucketName = `${prefix}-photo-archive-logging`
-            if(props.appendRegionToBucketName){
-                loggingBucketName += `-${Stack.of(this).region}`
-            }
-
-            let mainBucketName = `${prefix}-photo-archive`
+        // if not, we generate our own
+        }else{
+            
+            let mainBucketName = `${props.createBucketsWithPrefix}-photo-archive`
             if(props.appendRegionToBucketName){
                 mainBucketName += `-${Stack.of(this).region}`
             }
 
-            this.loggingBucket = new s3.Bucket(this, `${prefix}-pa-logging-bucket-id`, {
-              bucketName: loggingBucketName,
-              encryption: s3.BucketEncryption.S3_MANAGED,
-              enforceSSL: true,
-              
-              // temp to make building and destroying easier
-              //autoDeleteObjects: true,
-              removalPolicy: RemovalPolicy.RETAIN,
-        
-              publicReadAccess: false,
-              blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL
-            })
-      
-
-            this.mainBuckets.push(
-                new s3.Bucket(this, `${prefix}-pa-main-bucket-id`, {
-                    bucketName: mainBucketName,
-                    encryption: s3.BucketEncryption.S3_MANAGED,
-                    enforceSSL: true,
-                
-                    // temp to make building and destroying easier
-                    //autoDeleteObjects: true,
-                    removalPolicy: RemovalPolicy.RETAIN,
-                
-                    serverAccessLogsBucket: this.loggingBucket,
-                    serverAccessLogsPrefix: 'photo-archive-logs',
-                    publicReadAccess: false,
-                    blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
-                    inventories: [
-                        {
-                        frequency: s3.InventoryFrequency.WEEKLY,
-                        includeObjectVersions: s3.InventoryObjectVersion.CURRENT,
-                        destination: {
-                            bucket: this.loggingBucket,
-                            prefix: 'photo-archive-inventory'
-                        }
-                        }
-                    ],
-                    lifecycleRules: this.generateLifecycleRules(props),
-                })
-            )
-        }else{
-            for(const bucketArn of props.bucketsToImport!!){
-                const idSafeHash = HashUtil.generateIDSafeHash(bucketArn, 15)
-                this.mainBuckets.push(
-                    s3.Bucket.fromBucketArn(this, `pa-main-archive-bucket-${idSafeHash}`, bucketArn)
-                )
-            }
+            mainBucketNames.push(mainBucketName)
         }
 
-    }
-
-    private generateLifecycleRuleTransitions(
-        switchToInfrequentAccessTierAfterDays: number | undefined,
-        switchToGlacierAccessTierAfterDays: number | undefined,
-        defaultInfrequentAccessTransitionDuration: Duration,
-        defaultGlacierAccessTransitionDuration: Duration ): s3.Transition[] {
-
-        const transitions:s3.Transition[] = []
-      
-        if(switchToInfrequentAccessTierAfterDays !== undefined 
-            && switchToInfrequentAccessTierAfterDays > 0){
-    
-            transitions.push(
-                {
-                    storageClass: s3.StorageClass.INFREQUENT_ACCESS,
-                    transitionAfter: Duration.days(switchToInfrequentAccessTierAfterDays)
-                }
-            )
-        }else if(switchToInfrequentAccessTierAfterDays === undefined){
-            transitions.push(
-                {
-                    storageClass: s3.StorageClass.INFREQUENT_ACCESS,
-                    transitionAfter: defaultInfrequentAccessTransitionDuration
-                }
-            )
-        }
-    
-        if(switchToGlacierAccessTierAfterDays !== undefined
-            && switchToGlacierAccessTierAfterDays > 0){
-    
-            transitions.push(
-                {
-                    storageClass: s3.StorageClass.GLACIER,
-                    transitionAfter: Duration.days(switchToGlacierAccessTierAfterDays)
-                }
-            )
-        }else if(switchToGlacierAccessTierAfterDays === undefined){
-            transitions.push(
-                {
-                    storageClass: s3.StorageClass.GLACIER,
-                    transitionAfter: defaultGlacierAccessTransitionDuration
-                }
-            )
+        // logging bucket name is always generated. Later decides whether it is created or not
+        let loggingBucketName = `${props.createBucketsWithPrefix}-photo-archive-logging`
+        if(props.appendRegionToBucketName){
+            loggingBucketName += `-${Stack.of(this).region}`
         }
 
-        return transitions
-    }
-
-    private generateLifecycleRules(props: PhotoArchiveBucketsProps): s3.LifecycleRule[] | undefined {
-
-        const transitions = this.generateLifecycleRuleTransitions(
-            props.switchToInfrequentAccessTierAfterDays,
-            props.switchToGlacierAccessTierAfterDays,
-            props.defaultInfrequentAccessTransitionDuration,
-            props.defaultGlacierAccessTransitionDuration
-        )
-
-        if(transitions.length > 0){
-            return [
-                {
-                  enabled: true,
-                  id: 'photo-archive-lifecycle-transitions',
-                  transitions:transitions
-                }
-              ]
-        }else{
-            return undefined
+        return {
+            mainBucketNames: mainBucketNames,
+            loggingBucketName: loggingBucketName
         }
 
     }

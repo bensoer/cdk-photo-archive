@@ -8,12 +8,13 @@ import {
 import * as path from 'path'
 import { ManagedPolicies, ServicePrincipals } from "cdk-constants";
 import { SqsEventSource } from "aws-cdk-lib/aws-lambda-event-sources";
+import { ConfigurationSingletonFactory } from "../../conf/configuration-singleton-factory";
 
 
 export interface RequestBuilderFunctionProps{
     eventQueue: sqs.Queue,
-    requestQueue: sqs.Queue,
-    lambdaTimeout: Duration
+    lambdaTimeout: Duration,
+    stateMachineArn: string
 }
 
 export class RequestBuilderFunction extends Construct{
@@ -23,11 +24,13 @@ export class RequestBuilderFunction extends Construct{
     constructor(scope: Construct, id:string, props: RequestBuilderFunctionProps){
         super(scope, id)
 
+        const settings = ConfigurationSingletonFactory.getConcreteSettings()
+
         const account = Stack.of(this).account
         const region = Stack.of(this).region
 
-        const requestBuilderFunctionRole = new iam.Role(this, "rbf-service-role-id", {
-            roleName: "rbf-service-role",
+        const requestBuilderFunctionRole = new iam.Role(this, "ServiceRole", {
+            roleName: `${settings.namePrefix}-rbf-service-role`,
             description: "Service Role For Request Builder Function",
             assumedBy: new iam.ServicePrincipal(ServicePrincipals.LAMBDA)
           })
@@ -38,8 +41,8 @@ export class RequestBuilderFunction extends Construct{
             )
         )
       
-        const requestBuilderFunctionRoleSQSReceivePolicy = new iam.Policy(this, "rbf-service-role-sqs-receive-policy-id", {
-          policyName: "rbf-service-role-sqs-receive-policy",
+        const requestBuilderFunctionRoleSQSReceivePolicy = new iam.Policy(this, "ServiceRoleSQSReceivePolicy", {
+          policyName: `${settings.namePrefix}-rbf-service-role-sqs-receive-policy`,
           roles: [
             requestBuilderFunctionRole
           ],
@@ -59,26 +62,8 @@ export class RequestBuilderFunction extends Construct{
         //props.eventQueue.grantConsumeMessages(requestBuilderFunctionRole)
         
 
-        const requestBuilderFunctionRoleSQSSendPolicy = new iam.Policy(this, "rbf-service-role-sqs-send-policy-id", {
-            policyName: "rbf-service-role-sqs-send-policy",
-            roles: [
-                requestBuilderFunctionRole
-            ],
-            statements: [
-                new iam.PolicyStatement({
-                actions:[
-                    "sqs:SendMessage"
-                ],
-                resources:[
-                    props.requestQueue.queueArn
-                ]
-                })
-            ]
-        })
-          //props.requestQueue.grantSendMessages(requestBuilderFunctionRole)
-
-        const photoMetaFunctionRoleSSMPolicy = new iam.Policy(this, "rbf-service-role-ssm-policy-id", {
-          policyName: "rbf-service-role-ssm-policy",
+        const photoMetaFunctionRoleSSMPolicy = new iam.Policy(this, "ServiceRoleSSMPolicy", {
+          policyName: `${settings.namePrefix}-rbf-service-role-ssm-policy`,
           roles:[
             requestBuilderFunctionRole
           ],
@@ -88,15 +73,32 @@ export class RequestBuilderFunction extends Construct{
                 "ssm:GetParameter"
               ],
               resources: [
-                `arn:aws:ssm:${region}:${account}:parameter/pa/*`
+                `arn:aws:ssm:${region}:${account}:parameter/${settings.namePrefix}/*`
+              ]
+            })
+          ]
+        })
+
+        const requestBuilderFunctionRoleStateMachineExecutorPolicy = new iam.Policy(this, "StateMachineExecutorPolicy", {
+          policyName: `${settings.namePrefix}-rbf-state-machine-executor-policy`,
+          roles: [
+            requestBuilderFunctionRole
+          ],
+          statements: [
+            new iam.PolicyStatement({
+              actions:[
+                "states:StartExecution"
+              ],
+              resources:[
+                props.stateMachineArn
               ]
             })
           ]
         })
 
 
-        this.requestBuilderFunction = new lambda.Function(this, "rbf-id", {
-          functionName: 'request-builder-function',
+        this.requestBuilderFunction = new lambda.Function(this, "RequestBuilderFunction", {
+          functionName: `${settings.namePrefix}-request-builder-function`,
           description: 'Request Builder Function. Creates Initial Processing Request For Photo Archive Dispatcher Lambda From S3 Events.',
           runtime: lambda.Runtime.PYTHON_3_8,
           memorySize: 128,
@@ -105,8 +107,8 @@ export class RequestBuilderFunction extends Construct{
           timeout: props.lambdaTimeout,
           role: requestBuilderFunctionRole,
           environment: {
-              REQUEST_QUEUE_ARN: props.requestQueue.queueArn,
-              REQUEST_QUEUE_URL: props.requestQueue.queueUrl
+              SETTINGS_PREFIX: settings.namePrefix,
+              STATE_MACHINE_ARN: props.stateMachineArn
           }
         })
 

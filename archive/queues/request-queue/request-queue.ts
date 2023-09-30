@@ -24,14 +24,32 @@ export class RequestQueue extends Construct{
         const lambdaTimeoutMinutes = props.dispatcherLambdaTimeout.toMinutes()
         const visibilityTimeout = lambdaTimeoutMinutes * 6
 
-        this.requestQueue = new sqs.Queue(this, `rq-${props.requestQueueName}-id`, {
+        this.requestQueue = new sqs.Queue(this, `RequestQueue`, {
             queueName: props.requestQueueName,
             encryption: sqs.QueueEncryption.UNENCRYPTED,
             visibilityTimeout: Duration.minutes(visibilityTimeout)
           })
 
         if(props.lambdaArns !== undefined){
-            const requestQueuePolicy = new sqs.QueuePolicy(this, "rq-policy-id",{
+            this.requestQueue.addToResourcePolicy(new iam.PolicyStatement(
+                {
+                    principals:[
+                        new iam.ServicePrincipal(ServicePrincipals.LAMBDA)
+                    ],
+                    actions:[
+                        "sqs:SendMessage",
+                    ],
+                    resources:[
+                        this.requestQueue.queueArn
+                    ],
+                    conditions:{
+                        "ArnLike": {
+                            "aws:SourceArn": props.lambdaArns
+                        }
+                    }
+                })
+            )
+            /*const requestQueuePolicy = new sqs.QueuePolicy(this, "rq-policy-id",{
                 queues: [ this.requestQueue ],
               })
           
@@ -51,8 +69,7 @@ export class RequestQueue extends Construct{
                       }
                   }
               }))
+              */
         }
-      
-        
     }
 }

@@ -1,22 +1,30 @@
-import json
 import boto3
 from hashlib import md5, sha1, sha256, sha512
 import base64
 from os import environ
+from feature_processing import FeatureProcessing
+from dynamo_helper import DynamoHelper, DynamoEvent
+import common
 
 s3 = boto3.client('s3')
 sqs = boto3.client('sqs')
+ssm = boto3.client('ssm')
 
 FEATURE_NAME = environ.get("FEATURE_NAME")
-REQUEST_QUEUE_URL = environ.get("REQUEST_QUEUE_URL")
-REQUEST_QUEUE_ARN = environ.get("REQUEST_QUEUE_ARN")
+SETTINGS_PREFIX = environ.get("SETTINGS_PREFIX")
+DYNAMODB_METRICS_QUEUE_URL = environ.get("DYNAMODB_METRICS_QUEUE_URL", "Invalid")
 
 def lambda_handler(event, context):
+
+    if not common.is_feature_enabled(ssm, SETTINGS_PREFIX, FEATURE_NAME):
+        print("{} Has Been Disabled. Skipping Execution".format(FEATURE_NAME))
+        return event
 
     # Get the object from the event and show its content type
     print(event)
 
     bucket = event["bucketName"]
+    bucketArn = event["bucketArn"]
     key = event["key"]
     print("Processing Tagging For File: {} in Bucket: {}".format(key, bucket))
     
@@ -79,21 +87,17 @@ def lambda_handler(event, context):
 
     print("Tags Applied. Evaluating Event Features")
 
-    current_number_features_completed = event["numberOfFeaturesCompleted"] + 1
-    if current_number_features_completed < len(event["features"]):
-        # there are more features to complete.
+    fp = FeatureProcessing(event)
+    updated_fp = fp.generate_updated_request_queue_object(FEATURE_NAME)
 
-        # mark ours as done
-        for index, feature in enumerate(event["features"]):
-            if feature["name"] == FEATURE_NAME:
-                event["features"][index]["completed"] = True
-                event["numberOfFeaturesCompleted"] = current_number_features_completed
-                break
+    de = DynamoEvent()
+    de.bucket = bucket
+    de.key = key
+    de.bucketArn = bucketArn
+    de.featureName = FEATURE_NAME
+    de.featureData = { x["Key"]:x["Value"] for x in tagset }
+    DynamoHelper(DYNAMODB_METRICS_QUEUE_URL, sqs).create_entry(de)
+        
+    print("Processing Complete. Terminating")
 
-        # put into the requestQueue
-        sqs.send_message(
-            QueueUrl=REQUEST_QUEUE_URL,
-            MessageBody=json.dumps(event)
-        )
-    
-    print("Feature Processing Complete. Terminating")
+    return updated_fp.get_request_queue_object()

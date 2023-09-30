@@ -1,9 +1,17 @@
-import { IConfiguration } from "./i-configuration";
+import { IConcreteSettings } from "./concrete-settings";
+import { DefaultConfiguration } from "./default-configuration";
+import { ISettings } from "./settings";
 
 
 
 
 export abstract class AbstractConfiguration {
+
+    private localSettingsCache: ISettings
+
+    constructor(){
+        this.localSettingsCache = this.getConfiguration()
+    }
 
     /**
      * isExistingBuckets determines whether buckets have been defined in the configuration
@@ -15,7 +23,9 @@ export abstract class AbstractConfiguration {
             && this.getConfiguration().useExistingBuckets!!.length > 0
     }
 
+    
 
-    public abstract getConfiguration(): IConfiguration
+
+    public abstract getConfiguration(): ISettings
 
 }

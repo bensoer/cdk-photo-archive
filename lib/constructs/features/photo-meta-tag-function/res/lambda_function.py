@@ -7,9 +7,14 @@ import enum
 import time
 from os import environ
 from io import BytesIO
+from feature_processing import FeatureProcessing
+from dynamo_helper import DynamoHelper, DynamoEvent
+import common
 
 s3 = boto3.client("s3")
 sqs = boto3.client("sqs")
+ssm = boto3.client("ssm")
+
 class ExifTagNames(enum.Enum):
     CAMERA_MAKE = "Image Make"
     CAMERA_MODEL = "Image Model"
@@ -30,8 +35,8 @@ class TagKeys(enum.Enum):
 PHOTO_FILE_TYPES = ["jpg", "jpeg", "png", "dng"]
 
 FEATURE_NAME = environ.get("FEATURE_NAME")
-REQUEST_QUEUE_URL = environ.get("REQUEST_QUEUE_URL")
-REQUEST_QUEUE_ARN = environ.get("REQUEST_QUEUE_ARN")
+SETTINGS_PREFIX = environ.get("SETTINGS_PREFIX")
+DYNAMODB_METRICS_QUEUE_URL = environ.get("DYNAMODB_METRICS_QUEUE_URL", "Invalid")
 
 def convert_exif_shutter_speed(exif_shutter_speed_value:str) -> str:
     top_number = int(exif_shutter_speed_value.split("/")[0])
@@ -55,8 +60,13 @@ def convert_exif_aperture_speed(exif_aperture_value:str) -> str:
 
 
 def lambda_handler(event, context):
+
+    if not common.is_feature_enabled(ssm, SETTINGS_PREFIX, FEATURE_NAME):
+        print("{} Has Been Disabled. Skipping Execution".format(FEATURE_NAME))
+        return event
     
     bucket = event["bucketName"]
+    bucketArn = event["bucketArn"]
     key = event["key"]
     key_file_format = (key.split(".")[len(key.split("."))-1]).strip()
 
@@ -92,26 +102,26 @@ def lambda_handler(event, context):
             {
                 'Key': TagKeys.CAMERA_AND_LENSE_INFO.value,
                 'Value': '{} {} - {}'.format(
-                    exif[ExifTagNames.CAMERA_MAKE.value],
-                    exif[ExifTagNames.CAMERA_MODEL.value],
-                    exif[ExifTagNames.LENSE_MODEL.value]
+                    exif.get(ExifTagNames.CAMERA_MAKE.value, 'Unknown'),
+                    exif.get(ExifTagNames.CAMERA_MODEL.value, 'Unknown'),
+                    exif.get(ExifTagNames.LENSE_MODEL.value, 'Unknown')
                 )
             },
             {
                 'Key': TagKeys.PHOTO_INFORMATION.value,
                 'Value': 'Shutter: {} Aperature: {} ISO: {} Resolution: {}x{} Focal Length: {}'.format(
-                    exif[ExifTagNames.IMG_SHUTTER_SPEED.value],
-                    exif[ExifTagNames.IMG_APERATURE.value],
-                    exif[ExifTagNames.IMG_ISO.value],
-                    exif[ExifTagNames.IMG_X_RESOLUTION.value],
-                    exif[ExifTagNames.IMG_Y_RESOLUTION.value],
-                    exif[ExifTagNames.LENSE_FOCAL_LENGTH.value]
+                    exif.get(ExifTagNames.IMG_SHUTTER_SPEED.value, 'Unknown'),
+                    exif.get(ExifTagNames.IMG_APERATURE.value, 'Unknown'),
+                    exif.get(ExifTagNames.IMG_ISO.value, 'Unknown'),
+                    exif.get(ExifTagNames.IMG_X_RESOLUTION.value, 'Unknown'),
+                    exif.get(ExifTagNames.IMG_Y_RESOLUTION.value, 'Unknown'),
+                    exif.get(ExifTagNames.LENSE_FOCAL_LENGTH.value, 'Unknown')
                 )
             },
             {
                 'Key': TagKeys.PHOTO_DATE.value,
                 'Value': '{}'.format(
-                    exif[ExifTagNames.IMG_DATETIME.value]
+                    exif.get(ExifTagNames.IMG_DATETIME.value, 'Unknown')
                 )
             }
         ])
@@ -126,22 +136,17 @@ def lambda_handler(event, context):
         )
         print("Tags Applied. Evaluating Event Features")
 
-    current_number_features_completed = event["numberOfFeaturesCompleted"] + 1
-    if current_number_features_completed < len(event["features"]):
-        # there are more features to complete.
+    fp = FeatureProcessing(event)
+    updated_fp = fp.generate_updated_request_queue_object(FEATURE_NAME)
 
-        # mark ours as done
-        for index, feature in enumerate(event["features"]):
-            if feature["name"] == FEATURE_NAME:
-                event["features"][index]["completed"] = True
-                event["numberOfFeaturesCompleted"] = current_number_features_completed
-                break
+    de = DynamoEvent()
+    de.bucket = bucket
+    de.key = key
+    de.bucketArn = bucketArn
+    de.featureName = FEATURE_NAME
+    de.featureData = { key:value for key, value in exif.items() }
+    DynamoHelper(DYNAMODB_METRICS_QUEUE_URL, sqs).create_entry(de)
 
-        # put into the requestQueue
-        sqs.send_message(
-            QueueUrl=REQUEST_QUEUE_URL,
-            MessageBody=json.dumps(event)
-        )
-        
-    
     print("Feature Processing Complete. Terminating")
+
+    return updated_fp.get_request_queue_object()

@@ -1,116 +1,123 @@
-import { Duration, Stack, StackProps } from 'aws-cdk-lib';
+import { Duration, Stack, StackProps, Tags, Token, CfnParameter } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
-import { 
-  aws_lambda as lambda,
-  aws_s3 as s3,
-} from 'aws-cdk-lib';
-import { EventQueue } from './constructs/queues/event-queue/event-queue';
-import { DispatcherFunction } from './constructs/dispatcher-function/dispatcher-function';
 import { RequestBuilderFunction } from './constructs/request-builder-function/request-builder-function';
-import { RequestQueue } from './constructs/queues/request-queue/request-queue';
-import { HashTagFunction } from './constructs/features/hash-tag-function/hash-tag-function';
-import { PhotoMetaTagFunction } from './constructs/features/photo-meta-tag-function/photo-meta-tag-function';
-import { BucketQueueEventLinker } from './constructs/bucket-queue-event-linker/bucket-queue-event-linker';
-import { IConfiguration } from './conf/i-configuration';
-import { Configuration } from '../conf/configuration';
-import { Features } from './enums/features';
-import { PhotoRekogTagFunction } from './constructs/features/photo-rekog-tag-function/photo-rekog-tag-function';
-import { HashUtil } from './utils/hashutil';
+import { ConfigurationSingletonFactory } from './conf/configuration-singleton-factory';
+import { PhotoArchiveDynamoStack } from './photo-archive-dynamo-stack';
+import { PhotoArchiveBucketsStack } from './photo-archive-buckets-stack';
+import { PhotoArchiveFeatureStack } from './photo-archive-feature-stack';
+
+import {
+  aws_stepfunctions as sfn,
+  aws_stepfunctions_tasks as tasks,
+  aws_iam as iam,
+  aws_logs as logs,
+} from 'aws-cdk-lib'
 
 export interface PhotoArchiveStackProps extends StackProps {
-  configuration: Configuration
-  mainBuckets: Array<s3.IBucket>
+
 }
 
 export class PhotoArchiveStack extends Stack {
 
-   public readonly lambdaMap: Map<Features, string> = new Map()
-
   constructor(scope: Construct, id: string, props: PhotoArchiveStackProps) {
     super(scope, id, props);
 
-    const configuration: IConfiguration = props.configuration.getConfiguration()
-    const mainBuckets = props.mainBuckets
-    
+    const settings = ConfigurationSingletonFactory.getConcreteSettings()
+    const defaultLambdaTimeout = Duration.minutes(15)
+
+
+    // =========================
+    // S3 BUCKETS + EVENT HANDLING
+    // =========================
+
+    // PhotoArchiveBucketNestedStack
+    const photoArchiveBucketsNestedStack = new PhotoArchiveBucketsStack(this, 'PhotoArchiveBucketsStack', {
+      lambdaTimeout: defaultLambdaTimeout
+    })
+    //Tags.of(photoArchiveBucketsNestedStack).add('SubStackName', photoArchiveBucketsNestedStack.stackName)
+    const mainBucketNames = photoArchiveBucketsNestedStack.mainBucketNames.mainBucketNames
+    const bucketEventQueue = photoArchiveBucketsNestedStack.bucketEventQueue
+
+    // =========================
+    // DYNAMO DB
+    // =========================
+
+    let photoArchiveDynamoStack: PhotoArchiveDynamoStack | undefined = undefined
+    if(settings.enableDynamoMetricsTable){
+      photoArchiveDynamoStack = new PhotoArchiveDynamoStack(this, 'PhotoArchiveDynamoStack', {
+        lambdaTimeout: defaultLambdaTimeout
+      })
+
+      //Tags.of(photoArchiveDynamoStack).add('SubStackName', photoArchiveDynamoStack.stackName)
+    }
+        
     // ==========================
     // LAMBDAS + QUEUES
     // ==========================
 
-    const defaultLambdaTimeout = Duration.minutes(15)
-    const featureLambdas = new Array<lambda.Function>()
+    // PhotoArchiveFeatureStack
+    const photoArchiveFeatureStack = new PhotoArchiveFeatureStack(this, 'PhotoArchiveFeatureStack', {
+      mainBucketNames: mainBucketNames,
+      lambdaTimeout: defaultLambdaTimeout,
+      dynamoQueue: photoArchiveDynamoStack?.dynamoQueue
+    })
+    //Tags.of(photoArchiveFeatureStack).add('SubStackName', photoArchiveFeatureStack.stackName)
+    // THIS TAG CAUSES A CIRCULAR DEPENDENCY ?
+    const featureLambdas = photoArchiveFeatureStack.featureLambdas
 
-    // Bucket -> EventQueue
-    const eventQueue = new EventQueue(this, "pa-event-queue-id", {
-      buckets: mainBuckets,
-      eventQueueName: "pt-pa-event-queue",
+
+
+
+    // State machine
+    const smTasks = featureLambdas.map((featureLambda) => {
+      return new tasks.LambdaInvoke(this, `invoke-${featureLambda.functionName}`, {
+        lambdaFunction: featureLambda,
+        /*resultSelector: {
+          meta: '$.Payload.meta',
+          bucketName: '$.Payload.bucketName',
+          bucketArn: '$.Payload.bucketArn',
+          key: '$.Payload.key',
+          features: '$.Payload.features',
+          numberOfFeaturesCompleted: '$.Payload.numberOfFeaturesComplete'
+        }*/
+        outputPath: '$.Payload'
+      })
+    })
+
+    const definition = smTasks.shift()
+    if(definition != undefined){
+      let chain = sfn.Chain.start(definition)
+      for(const smtask of smTasks){
+        chain = chain.next(smtask)
+      }
+    }
+
+    const stateMachine = new sfn.StateMachine(this, 'PhotoProcessingStateMachine', {
+      comment: 'Photo Processing State Machine',
+      stateMachineName: 'photo-processing-state-machine',
+      definitionBody: definition != undefined ? sfn.DefinitionBody.fromChainable(definition) : undefined,
+
+      tracingEnabled: true,
+      logs: {
+        destination: new logs.LogGroup(this, 'photo-processing-state-machine-logs'),
+        level: sfn.LogLevel.ALL
+      }
+    })
+  
+    // EventQueue -> ReqestBuilderFunction -> Trigger the State Machine
+    const requestBuilderFunction = new RequestBuilderFunction(this, "RequestBuilderFunction", {
+      stateMachineArn: stateMachine.stateMachineArn,
+      eventQueue: bucketEventQueue,
       lambdaTimeout: defaultLambdaTimeout
     })
 
-    // RequestBuilderLambda -> RequestQueue
-    // FeatureLambda -> RequestQueue
-    const requestQueue = new RequestQueue(this, "pa-request-queue-id", {
-      dispatcherLambdaTimeout: defaultLambdaTimeout,
-      requestQueueName: "pt-pa-request-queue"
-    })
 
-    // DispatchLambda -> HashingFunction (FeatureLambda)
-    if(configuration.features.includes(Features.HASH_TAG)){
-      const hashFunction = new HashTagFunction(this, "pa-hash-tag-function-id", {
-        buckets: mainBuckets,
-        requestQueue: requestQueue.requestQueue,
-        lambdaTimeout: defaultLambdaTimeout
-      })
-      this.lambdaMap.set(Features.HASH_TAG, hashFunction.hashTagFunction.functionArn)
-      featureLambdas.push(hashFunction.hashTagFunction)
-    }
-    
-    // DispatchLambda -> PhotoMetaFunction (FeatureLambda)
-    if(configuration.features.includes(Features.PHOTO_META_TAG)){
-      const photoMetaTaggerFunction = new PhotoMetaTagFunction(this, "pa-photo-meta-tag-function-id", {
-        buckets: mainBuckets,
-        requestQueue: requestQueue.requestQueue,
-        lambdaTimeout: defaultLambdaTimeout
-      })
-      this.lambdaMap.set(Features.PHOTO_META_TAG, photoMetaTaggerFunction.photoMetaFunction.functionArn)
-      featureLambdas.push(photoMetaTaggerFunction.photoMetaFunction)
+    if(settings.enableDynamoMetricsTable){
+      photoArchiveDynamoStack?.setDynamoQueuePolicyToAllowLambdas(featureLambdas)
+      photoArchiveDynamoStack?.node.addDependency(photoArchiveFeatureStack)
     }
 
-    // DispatchLambda -> RekogFunction (FeatureLambda)
-    if(configuration.features.includes(Features.PHOTO_REKOG_TAG)){
-      const rekogFunction = new PhotoRekogTagFunction(this, "pa-photo-rekog-tag-function-id", {
-        buckets:mainBuckets,
-        requestQueue: requestQueue.requestQueue,
-        lambdaTimeout: defaultLambdaTimeout
-      })
-      this.lambdaMap.set(Features.PHOTO_REKOG_TAG, rekogFunction.rekogFunction.functionArn)
-      featureLambdas.push(rekogFunction.rekogFunction)
-    }
-    
-    // RequestQueue -> DispatcherFunction
-    const dispatcherFunction = new DispatcherFunction(this, "pa-dispatcher-function-id", {
-      featureLambdas: featureLambdas,
-      requestQueue: requestQueue.requestQueue,
-      lambdaTimeout: defaultLambdaTimeout
-    })
 
-    // EventQueue -> ReqestBuilderFunction
-    const requestBuilderFunction = new RequestBuilderFunction(this, "pa-request-builder-function-id", {
-      eventQueue: eventQueue.eventQueue,
-      requestQueue: requestQueue.requestQueue,
-      lambdaTimeout: defaultLambdaTimeout
-    })
-
-    // ==========================
-    // EVENT LINKING
-    // ==========================
-
-    for(const mainBucket of mainBuckets){
-      const hash = HashUtil.generateIDSafeHash(mainBucket.bucketArn + mainBucket.bucketName + eventQueue.eventQueue.queueArn, 15)
-      const bucketQueueEventLinker = new BucketQueueEventLinker(this, `pa-bucket-queue-event-linker-${hash}-id`, {
-        bucket: mainBucket,
-        queue: eventQueue.eventQueue
-      })
-    }
 
   }
 

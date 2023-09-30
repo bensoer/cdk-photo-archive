@@ -1,5 +1,5 @@
 import { AbstractConfiguration } from "../lib/conf/abstract-configuration";
-import { IConfiguration } from "../lib/conf/i-configuration";
+import { ISettings } from "../lib/conf/settings";
 import { Features } from "../lib/enums/features";
 import { Regions } from "../lib/enums/regions";
 
@@ -13,7 +13,7 @@ export class Configuration extends AbstractConfiguration{
      * See README or /lib/conf/i-configuration.ts for details of all the available configurations and what they do.
      * @returns IConfiguration - object representing all of the configuration settings set to their desired values
      */
-    public getConfiguration(): IConfiguration {
+    public getConfiguration(): ISettings {
         return {
             /**
              * Stack names in AWS CloudFormation
@@ -28,11 +28,6 @@ export class Configuration extends AbstractConfiguration{
             appendDeploymentRegionToStackNames: true,
 
             /**
-             * Region to deploy this project to
-             */
-            deploymentRegion: Regions.USEAST1,
-
-            /**
              * List of Features to enable in the project. See /lib/enums/features.ts for all
              * available features
              */
@@ -40,7 +35,9 @@ export class Configuration extends AbstractConfiguration{
                 Features.HASH_TAG,
                 Features.PHOTO_META_TAG,
                 Features.PHOTO_REKOG_TAG
-            ]
+            ],
+            
+            enableDynamoMetricsTable: false
         }
     }
 }

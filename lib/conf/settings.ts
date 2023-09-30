@@ -2,7 +2,7 @@ import { Features } from "../enums/features";
 import { Regions } from "../enums/regions";
 
 
-export interface IConfiguration {
+export interface ISettings extends Record<string, any> {
 
 
     /**
@@ -21,6 +21,12 @@ export interface IConfiguration {
      * Leave undefined for default value. Default value is "pt"
      */
     bucketNamePrefix?: string
+
+    /**
+     * Specify a custom prefix for photo archive components where appropriate. 
+     * Leave undefined for detault value. Default value is "pt"
+     */
+    namePrefix?: string
 
     /**
      * Whether or not to append the region name to the bucket name. Leave undefined for default value
@@ -50,18 +56,6 @@ export interface IConfiguration {
     photoArchiveStackName?: string
 
     /**
-     * Specify the name of the photo archive settings stack name in CloudFormation
-     * Leave blank to use default. Default name is "photo-archive-settings-stack"
-     */
-    photoArchiveSettingsStackName?: string
-
-    /**
-     * Specify the name of the photo archive buckets stack name in CloudFormation
-     * Leave blank to use default. Default name is "photo-archive-buckets-stack"
-     */
-    photoArchiveBucketsStackName?:string
-
-    /**
      * Specify whetehr stack names should have their deployment region appended to them.
      * Leave blank to use default. Default value is TRUE
      * 
@@ -70,9 +64,37 @@ export interface IConfiguration {
      */
     appendDeploymentRegionToStackNames?:boolean
 
+
     /**
-     * Region the cdk will be deployed to
+     * Enable/Disable the dynamo metrics table. This is a table that will store verbose detailed information about each
+     * photo processed by each of the feature methods. Additional information that is not tagged, will be stored and
+     * can be queries from here. Leave undefined for default value. Default value is FALSE
      */
-    deploymentRegion: Regions
+    enableDynamoMetricsTable?: boolean
+
+    /**
+     * Enable/Disable S3 Bucket Logging on the Archive Buckets. This includes both created and imported buckets. This will 
+     * create a logging bucket which will have all actions done on the archive buckets logged to it. Leave undefined for 
+     * default value. Default value is TRUE
+     */
+    enableLoggingOfArchiveBuckets?: boolean
+
+    /**
+     * Enable/Disable S3 Bucket Inventories on the Archive Buckets. This includes both created and imported buckets. This will create
+     * a logging bucket which will have weekly inventories of all archive buckets stored in it. Leave undefined for
+     * default value. Default value is TRUE
+     */
+    enableInventoryOfArchiveBuckets?: boolean
+
+    /**
+     * Enable Transition settings to the S3 Main Buckets. Set this value to false if you would like to apply your own transitions to your
+     * own buckets. This may be useful if you are importing existing buckets and do not want their transition settings to be overridden.
+     * 
+     * NOTE: IF set to False, switchToInfrequentAccessTierAfterDays and switchToGlacierAccessTierAfterDays will have no point. They can still
+     * be set, but their value will not be applied to any buckets as transitions will not be applied.
+     * 
+     * Leave undefined for default value. Default value is TRUE
+     */
+    applyTransitionsToMainBuckets?: boolean
 
 }

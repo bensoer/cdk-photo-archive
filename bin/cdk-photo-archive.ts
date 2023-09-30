@@ -2,59 +2,29 @@
 import 'source-map-support/register';
 import * as cdk from 'aws-cdk-lib';
 import { PhotoArchiveStack } from '../lib/photo-archive-stack';
-import { Configuration } from '../conf/configuration';
-import { PhotoArchiveSettingsStack } from '../lib/photo-archive-settings-stack';
-import { PhotoArchiveBucketsStack } from '../lib/photo-archive-buckets-stack';
+import { ConfigurationSingletonFactory } from '../lib/conf/configuration-singleton-factory';
+import { Tag, Tags } from 'aws-cdk-lib';
 
 const app = new cdk.App();
 
-const configuration = new Configuration()
-const deploymentRegion = configuration.getConfiguration().deploymentRegion
+const settings = ConfigurationSingletonFactory.getConcreteSettings()
 
-let photoArchiveStackName = configuration.getConfiguration().photoArchiveStackName ?? `photo-archive-stack`
-let photoArchiveSettingsStackName = configuration.getConfiguration().photoArchiveSettingsStackName ?? `photo-archive-settings-stack`
-let photoArchiveBucketsStackName = configuration.getConfiguration().photoArchiveBucketsStackName ?? `photo-archive-bucket-stack`
+let photoArchiveStackName = settings.photoArchiveStackName
 
-const appendRegionToStackNames = configuration.getConfiguration().appendDeploymentRegionToStackNames ?? true
-if(appendRegionToStackNames){
-  photoArchiveStackName += `-${deploymentRegion}`
-  photoArchiveSettingsStackName += `-${deploymentRegion}`
-  photoArchiveBucketsStackName += `-${deploymentRegion}`
+if(settings.appendDeploymentRegionToStackNames){
+  photoArchiveStackName += `-${process.env.CDK_DEFAULT_REGION}`
 }
 
-
-const photoArchiveBucketsStack = new PhotoArchiveBucketsStack(app, `photo-archive-bucket-stack-${deploymentRegion}-id`,{
-  stackName: photoArchiveBucketsStackName,
-  description: "Stack containing S3 archive bucket configuration for photo archiving infrastructure",
-  configuration: configuration,
-
-  env:{
-    region: deploymentRegion,
-    account: process.env.CDK_DEFAULT_ACCOUNT
-  }
-})
-
-const photoArchiveStack = new PhotoArchiveStack(app, `photo-archive-stack-${deploymentRegion}-id`, {
+const photoArchiveStack = new PhotoArchiveStack(app, `PhotoArchiveStack`, {
   stackName: photoArchiveStackName,
   description: "Main stack containing architecture for photo archive infrastructure",
 
-  configuration: configuration,
-  mainBuckets: photoArchiveBucketsStack.mainBuckets,
-
   env:{
-    region: deploymentRegion,
+    region: process.env.CDK_DEFAULT_REGION,
     account: process.env.CDK_DEFAULT_ACCOUNT
   }
 });
 
-new PhotoArchiveSettingsStack(app, `photo-archive-settings-stack-${deploymentRegion}-id`, {
-  stackName: photoArchiveSettingsStackName,
-  description: "Stack containing settings related infrastructure for photo archive infrastructure",
-  features: configuration.getConfiguration().features,
-  lambdaMap: photoArchiveStack.lambdaMap,
-
-  env:{
-    region: deploymentRegion,
-    account: process.env.CDK_DEFAULT_ACCOUNT
-  }
-})
+Tags.of(photoArchiveStack).add("Application", "PhotoArchiveStack")
+Tags.of(photoArchiveStack).add("RootStackName", photoArchiveStackName)
+//Tags.of(photoArchiveStack).add("CreatedDate", new Date().toUTCString())
